@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import ScoreBar from "@/components/ScoreBar";
 import { getOpportunity } from "@/lib/data/queries";
@@ -43,8 +44,10 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
 
       {plan && (
         <div className="panel" style={{ marginTop: 24 }}>
-          <p className="eyebrow">VALIDATION ENGINE · {plan.verdict || "pending"}</p>
-          <h2>Paid validation plan</h2>
+          <div className="section-heading">
+            <div><p className="eyebrow">VALIDATION ENGINE · {plan.verdict || "pending"}</p><h2>Paid validation plan</h2></div>
+            <Link href="/execution">Manage execution ↗</Link>
+          </div>
           <h3>Hypothesis</h3>
           <p className="muted">{plan.hypothesis}</p>
           <h3>Offer</h3>
@@ -55,6 +58,16 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
             <div>Window<strong>{plan.maxDays ? `${plan.maxDays} days` : "—"}</strong></div>
             <div>Channel<strong>{plan.channel || "—"}</strong></div>
           </div>
+
+          <div className="stats-grid" style={{ marginTop: 18 }}>
+            <div className="stat-card"><span>Contacted</span><strong>{plan.contactedCount || 0}</strong></div>
+            <div className="stat-card"><span>Replies</span><strong>{plan.repliedCount || 0}</strong></div>
+            <div className="stat-card"><span>Qualified</span><strong>{plan.qualifiedCount || 0}</strong></div>
+            <div className="stat-card"><span>Paid</span><strong>{plan.paidCount || 0} / {plan.successPaidTarget || "—"}</strong></div>
+            <div className="stat-card"><span>Delivered</span><strong>{plan.deliveredCount || 0} / {plan.successDeliveredTarget ?? "—"}</strong></div>
+            <div className="stat-card"><span>Revenue</span><strong>{plan.offerCurrency || "USD"} {Number(plan.revenueAmount || 0).toFixed(0)}</strong></div>
+          </div>
+
           <h3>Who to contact</h3>
           <p className="muted">{plan.audience || "—"}</p>
           <h3>Method</h3>
@@ -63,6 +76,7 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
           <p className="muted"><strong>{plan.successMetric || "Metric"}:</strong> {plan.successThreshold || "—"}</p>
           <h3>Failure / stop</h3>
           <p className="muted">{plan.failureThreshold || "—"}</p>
+          <p className="muted">Auto-fail after {plan.targetSampleSize || "—"} contacted if paid ≤ {plan.failureMaxPaid ?? "—"}.</p>
           <p className="muted">Stop when: {plan.stopCondition || "—"}</p>
           <h3>First outreach</h3>
           <div className="card" style={{ marginTop: 8 }}><p style={{ whiteSpace: "pre-wrap" }}>{plan.outreachMessage || "—"}</p></div>
@@ -95,10 +109,7 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
           <div className="card-grid">
             {item.competitors.map((competitor) => (
               <div className="card" key={`${competitor.name}-${competitor.url || "unknown"}`}>
-                <div className="card-top">
-                  <h3>{competitor.name}</h3>
-                  <span className="badge">{priceLabel(competitor)}</span>
-                </div>
+                <div className="card-top"><h3>{competitor.name}</h3><span className="badge">{priceLabel(competitor)}</span></div>
                 {!!competitor.strengths?.length && <p className="muted">Strengths: {competitor.strengths.join(" · ")}</p>}
                 {!!competitor.weaknesses?.length && <p className="muted">Weaknesses: {competitor.weaknesses.join(" · ")}</p>}
                 {competitor.evidenceUrl && <a href={competitor.evidenceUrl} target="_blank" rel="noreferrer">Evidence source ↗</a>}
