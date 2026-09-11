@@ -10,13 +10,21 @@ export async function getDashboardData() {
     { count: signalCount },
     { count: semanticClusterCount },
     { count: heuristicClusterCount },
-    { data },
   ] = await Promise.all([
     supabase.from("signals").select("*", { count: "exact", head: true }),
     supabase.from("problem_clusters").select("*", { count: "exact", head: true }).eq("clustering_version", "semantic-v1.1"),
     supabase.from("problem_clusters").select("*", { count: "exact", head: true }).eq("clustering_version", "heuristic-v1"),
-    supabase.from("opportunities").select("*").order("opportunity_score", { ascending: false }).limit(10),
   ]);
+
+  const hasSemantic = (semanticClusterCount || 0) > 0;
+  const clusterMode = hasSemantic ? "semantic-v1.1" : "heuristic-v1";
+
+  const { data } = await supabase
+    .from("opportunities")
+    .select("*, problem_clusters!inner(clustering_version)")
+    .eq("problem_clusters.clustering_version", clusterMode)
+    .order("opportunity_score", { ascending: false })
+    .limit(10);
 
   const opportunities: OpportunityView[] = (data || []).map((x) => ({
     id: x.id,
@@ -34,12 +42,11 @@ export async function getDashboardData() {
     validationExperiment: x.validation_experiment,
   }));
 
-  const hasSemantic = (semanticClusterCount || 0) > 0;
   return {
     mode: "live",
     signalCount: signalCount || 0,
     clusterCount: hasSemantic ? (semanticClusterCount || 0) : (heuristicClusterCount || 0),
-    clusterMode: hasSemantic ? "semantic-v1.1" : "heuristic-v1",
+    clusterMode,
     opportunities,
   };
 }
