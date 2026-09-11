@@ -10,6 +10,8 @@ const STOPWORDS = new Set([
   "the","and","for","with","from","into","inside","without","through","about","this","that","these","those",
   "add","update","implement","validate","support","official","version","production","issue","model","tool","tools",
   "workflow","workflows","system","systems","client","service","services","data","using","use","new","clear",
+  "developer","development","project","partner","needed","expert","engineer","senior","app","website","build",
+  "fix","bug","bugs","full-stack","fullstack","looking","work","solution","software","help",
 ]);
 
 type SignalRow = {
@@ -26,6 +28,7 @@ type SignalRow = {
   evidence_quality_score: number;
   money_signal_type: string | null;
   embedding_model: string | null;
+  sources?: { kind: string } | Array<{ kind: string }> | null;
 };
 
 type MatchRow = {
@@ -37,6 +40,16 @@ type MatchRow = {
 };
 
 type ReclusterOptions = { pendingOnly?: boolean };
+
+function sourceKind(signal: SignalRow) {
+  const source = signal.sources;
+  if (Array.isArray(source)) return source[0]?.kind || null;
+  return source?.kind || null;
+}
+
+function isMarketplace(signal: SignalRow) {
+  return sourceKind(signal) === "marketplace";
+}
 
 function embeddingText(signal: SignalRow) {
   return [
@@ -96,6 +109,19 @@ async function embed(inputs: string[]) {
 }
 
 function chooseMatch(matches: MatchRow[], signal: SignalRow) {
+  if (isMarketplace(signal)) {
+    for (const match of matches) {
+      const similarity = Number(match.similarity);
+      if (similarity >= 0.82) return match;
+      if (
+        match.category === signal.category &&
+        similarity >= 0.72 &&
+        hasSharedSubject(match.name, signal.problem)
+      ) return match;
+    }
+    return null;
+  }
+
   for (const match of matches) {
     const similarity = Number(match.similarity);
     if (similarity >= 0.76) return match;
@@ -113,7 +139,7 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
   const [{ data: signals, error }, { data: links, error: linksError }] = await Promise.all([
     supabase
       .from("signals")
-      .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score,money_signal_type,embedding_model")
+      .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score,money_signal_type,embedding_model,sources!inner(kind)")
       .eq("is_actionable", true)
       .order("published_at", { ascending: false })
       .limit(500),
