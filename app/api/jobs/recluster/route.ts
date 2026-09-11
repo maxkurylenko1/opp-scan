@@ -20,6 +20,11 @@ function authorized(request: Request) {
   return request.headers.get("authorization") === `Bearer ${config.cronSecret}`;
 }
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  try { return JSON.stringify(error); } catch { return String(error); }
+}
+
 async function run(limit: number, pendingOnly: boolean) {
   if (!config.openAiKey) return NextResponse.json({ error: "OPENAI_API_KEY is not configured" }, { status: 503 });
   try {
@@ -31,7 +36,7 @@ async function run(limit: number, pendingOnly: boolean) {
     return NextResponse.json({ ok: true, ...result, ranked });
   } catch (error) {
     console.error("semantic recluster failed", error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
   }
 }
 
