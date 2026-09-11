@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { isAdminSession } from "@/lib/auth/admin";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { generateOutreachDrafts } from "@/lib/outreach/generate";
 
 const STAGES = new Set(["prospect","contacted","replied","qualified","paid","delivered","lost"]);
 const DISCOVERY_STATES = new Set(["suggested","approved","dismissed"]);
+const OUTREACH_STATES = new Set(["approved","rejected"]);
 
 async function requireAdmin() {
   if (!(await isAdminSession())) throw new Error("Unauthorized");
@@ -48,15 +50,52 @@ export async function discoverProspects() {
   revalidatePath("/execution");
 }
 
+export async function generateAllOutreach() {
+  await requireAdmin();
+  await generateOutreachDrafts(20, { autoOnly: false });
+  revalidatePath("/execution");
+}
+
+export async function generateContactOutreach(form: FormData) {
+  await requireAdmin();
+  const contactId = String(form.get("contactId") || "");
+  if (!contactId) throw new Error("Missing contactId");
+  await generateOutreachDrafts(1, { force: true, contactId });
+  revalidatePath("/execution");
+}
+
+export async function setOutreachState(form: FormData) {
+  const supabase = await requireAdmin();
+  const contactId = String(form.get("contactId") || "");
+  const outreachState = String(form.get("outreachState") || "");
+  if (!contactId || !OUTREACH_STATES.has(outreachState)) throw new Error("Invalid outreach state");
+
+  const payload: Record<string, unknown> = {
+    outreach_state: outreachState,
+    outreach_approved_at: outreachState === "approved" ? new Date().toISOString() : null,
+  };
+  if (outreachState === "approved") payload.discovery_state = "approved";
+
+  const { error } = await supabase.from("validation_contacts").update(payload).eq("id", contactId);
+  if (error) throw error;
+  revalidatePath("/execution");
+}
+
 export async function setDiscoveryState(form: FormData) {
   const supabase = await requireAdmin();
   const contactId = String(form.get("contactId") || "");
   const discoveryState = String(form.get("discoveryState") || "");
   if (!contactId || !DISCOVERY_STATES.has(discoveryState)) throw new Error("Invalid discovery state");
 
+  const payload: Record<string, unknown> = { discovery_state: discoveryState };
+  if (discoveryState === "dismissed") {
+    payload.outreach_state = "rejected";
+    payload.outreach_approved_at = null;
+  }
+
   const { error } = await supabase
     .from("validation_contacts")
-    .update({ discovery_state: discoveryState })
+    .update(payload)
     .eq("id", contactId);
   if (error) throw error;
   revalidatePath("/execution");
