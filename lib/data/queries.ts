@@ -2,31 +2,8 @@ import { demoOpportunities } from "./demo";
 import { getAdminClient } from "@/lib/supabase/admin";
 import type { OpportunityView } from "@/lib/types";
 
-export async function getDashboardData() {
-  const supabase = getAdminClient();
-  if (!supabase) return { mode: "demo", signalCount: 53, clusterCount: 53, clusterMode: "heuristic-v1", opportunities: demoOpportunities };
-
-  const [
-    { count: signalCount },
-    { count: semanticClusterCount },
-    { count: heuristicClusterCount },
-  ] = await Promise.all([
-    supabase.from("signals").select("*", { count: "exact", head: true }),
-    supabase.from("problem_clusters").select("*", { count: "exact", head: true }).eq("clustering_version", "semantic-v1.1"),
-    supabase.from("problem_clusters").select("*", { count: "exact", head: true }).eq("clustering_version", "heuristic-v1"),
-  ]);
-
-  const hasSemantic = (semanticClusterCount || 0) > 0;
-  const clusterMode = hasSemantic ? "semantic-v1.1" : "heuristic-v1";
-
-  const { data } = await supabase
-    .from("opportunities")
-    .select("*, problem_clusters!inner(clustering_version)")
-    .eq("problem_clusters.clustering_version", clusterMode)
-    .order("opportunity_score", { ascending: false })
-    .limit(10);
-
-  const opportunities: OpportunityView[] = (data || []).map((x) => ({
+function toOpportunityView(x: any): OpportunityView {
+  return {
     id: x.id,
     title: x.title,
     thesis: x.thesis,
@@ -40,14 +17,60 @@ export async function getDashboardData() {
     mvpScope: x.mvp_scope,
     acquisitionChannel: x.acquisition_channel,
     validationExperiment: x.validation_experiment,
-  }));
+  };
+}
+
+export async function getDashboardData() {
+  const supabase = getAdminClient();
+  if (!supabase) return { mode: "demo", signalCount: 53, clusterCount: 53, clusterMode: "heuristic-v1", opportunities: demoOpportunities };
+
+  const [
+    { count: signalCount },
+    { count: themeCount },
+    { count: semanticClusterCount },
+    { count: heuristicClusterCount },
+    { count: rankedThemeCount },
+  ] = await Promise.all([
+    supabase.from("signals").select("*", { count: "exact", head: true }),
+    supabase.from("opportunity_themes").select("*", { count: "exact", head: true }).eq("theme_version", "theme-v1.0"),
+    supabase.from("problem_clusters").select("*", { count: "exact", head: true }).eq("clustering_version", "semantic-v1.1"),
+    supabase.from("problem_clusters").select("*", { count: "exact", head: true }).eq("clustering_version", "heuristic-v1"),
+    supabase.from("opportunities").select("*", { count: "exact", head: true }).eq("score_version", "theme-v1.0").not("theme_id", "is", null),
+  ]);
+
+  const hasRankedThemes = (rankedThemeCount || 0) > 0;
+  const hasSemantic = (semanticClusterCount || 0) > 0;
+  const clusterMode = hasRankedThemes ? "theme-v1.0" : hasSemantic ? "semantic-v1.1" : "heuristic-v1";
+
+  let data: any[] | null = null;
+
+  if (hasRankedThemes) {
+    const result = await supabase
+      .from("opportunities")
+      .select("*")
+      .eq("score_version", "theme-v1.0")
+      .not("theme_id", "is", null)
+      .in("status", ["research", "validate", "build", "winner"])
+      .order("opportunity_score", { ascending: false })
+      .limit(10);
+    data = result.data;
+  } else {
+    const result = await supabase
+      .from("opportunities")
+      .select("*, problem_clusters!inner(clustering_version)")
+      .eq("problem_clusters.clustering_version", clusterMode)
+      .in("status", ["research", "validate", "build", "winner"])
+      .order("opportunity_score", { ascending: false })
+      .limit(10);
+    data = result.data;
+  }
 
   return {
     mode: "live",
     signalCount: signalCount || 0,
-    clusterCount: hasSemantic ? (semanticClusterCount || 0) : (heuristicClusterCount || 0),
+    clusterCount: hasRankedThemes ? (themeCount || 0) : hasSemantic ? (semanticClusterCount || 0) : (heuristicClusterCount || 0),
     clusterMode,
-    opportunities,
+    opportunities: (data || []).map(toOpportunityView),
   };
 }
 
@@ -56,19 +79,5 @@ export async function getOpportunity(id: string) {
   if (!supabase) return demoOpportunities.find((x) => x.id === id) || null;
   const { data } = await supabase.from("opportunities").select("*").eq("id", id).maybeSingle();
   if (!data) return null;
-  return {
-    id: data.id,
-    title: data.title,
-    thesis: data.thesis,
-    status: data.status,
-    opportunityScore: Number(data.opportunity_score),
-    confidenceScore: Number(data.confidence_score),
-    targetCustomer: data.target_customer,
-    timeToValidationDays: data.time_to_validation_days,
-    whyNow: data.why_now,
-    biggestRisk: data.biggest_risk,
-    mvpScope: data.mvp_scope,
-    acquisitionChannel: data.acquisition_channel,
-    validationExperiment: data.validation_experiment,
-  } satisfies OpportunityView;
+  return toOpportunityView(data);
 }
