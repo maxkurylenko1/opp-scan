@@ -1,0 +1,2 @@
+export type ScoreInput={pain:number;willingnessToPay:number;reachability:number;frequency:number;growthTiming:number;competitorGap:number;buildability:number;recurringRevenue:number;penalty?:number};
+export function scoreOpportunity(x:ScoreInput){const raw=x.pain*2+x.willingnessToPay*2+x.reachability*1.5+x.frequency+x.growthTiming+x.competitorGap+x.buildability+x.recurringRevenue*.5-(x.penalty||0);return Math.max(0,Math.min(100,Number(raw.toFixed(2))))}

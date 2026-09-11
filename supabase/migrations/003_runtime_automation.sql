@@ -1,0 +1,2 @@
+-- Production automation is active in Supabase using Edge Functions + pg_cron.
+-- Keep this file as the source-control marker for runtime automation.

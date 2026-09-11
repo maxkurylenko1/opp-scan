@@ -1,0 +1,4 @@
+-- Production scheduling is currently configured directly in Supabase.
+-- Keep cron orchestration close to the database/Edge Functions so the UI deployment remains replaceable.
+-- Daily: collect public sources, then normalize.
+-- Weekly: rank opportunities and generate a weekly report.

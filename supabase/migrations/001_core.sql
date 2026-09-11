@@ -1,0 +1,3 @@
+-- Canonical production schema is already applied in Supabase.
+-- This repository keeps the migration history as documentation/source control.
+-- See docs/DEPLOYED_V1.md and the Supabase project for the active schema.

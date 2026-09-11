@@ -1,0 +1,4 @@
+import { getAdminClient } from "@/lib/supabase/admin";
+
+export const dynamic = "force-dynamic";
+export default async function SignalsPage(){const sb=getAdminClient();let rows:any[]=[];if(sb){const {data}=await sb.from("signals").select("problem,category,pain_score,purchase_intent_score,published_at").order("published_at",{ascending:false}).limit(100);rows=data||[]}return <div className="page-shell"><p className="eyebrow">EVIDENCE</p><h1>Recent signals</h1><div className="panel">{rows.length?<table className="table"><thead><tr><th>Problem</th><th>Category</th><th>Pain</th><th>Money</th><th>Date</th></tr></thead><tbody>{rows.map((r,i)=><tr key={i}><td>{r.problem}</td><td>{r.category}</td><td>{r.pain_score}</td><td>{r.purchase_intent_score}</td><td>{new Date(r.published_at).toLocaleDateString()}</td></tr>)}</tbody></table>:<div className="empty">Configure Supabase to see live signals.</div>}</div></div>}

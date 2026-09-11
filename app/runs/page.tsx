@@ -1,0 +1,4 @@
+import { getAdminClient } from "@/lib/supabase/admin";
+
+export const dynamic = "force-dynamic";
+export default async function RunsPage(){const sb=getAdminClient();let rows:any[]=[];if(sb){const {data}=await sb.from("collection_runs").select("collector,status,records_seen,records_inserted,started_at,finished_at,error_text").order("started_at",{ascending:false}).limit(50);rows=data||[]}return <div className="page-shell"><p className="eyebrow">PIPELINE</p><h1>Collection runs</h1><div className="panel">{rows.length?<table className="table"><thead><tr><th>Collector</th><th>Status</th><th>Seen</th><th>Inserted</th><th>Started</th></tr></thead><tbody>{rows.map((r,i)=><tr key={i}><td>{r.collector}</td><td>{r.status}</td><td>{r.records_seen}</td><td>{r.records_inserted}</td><td>{new Date(r.started_at).toLocaleString()}</td></tr>)}</tbody></table>:<div className="empty">No collection runs yet.</div>}</div></div>}

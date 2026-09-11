@@ -1,0 +1,2 @@
+-- V1.1 placeholder: enable pgvector and semantic embeddings after baseline signal quality is validated.
+-- create extension if not exists vector with schema extensions;
