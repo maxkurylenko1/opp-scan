@@ -22,6 +22,8 @@ type GenerateOptions = {
   autoOnly?: boolean;
 };
 
+type BudgetRange = { min: number; max: number; currency: string };
+
 function extractOutputText(response: any) {
   if (typeof response?.output_text === "string" && response.output_text.trim()) return response.output_text;
   for (const item of response?.output || []) {
@@ -37,6 +39,67 @@ function clean(value: unknown, max = 6000) {
   return typeof value === "string" ? value.slice(0, max) : "";
 }
 
+function currencyFromSymbol(symbol: string) {
+  if (symbol === "$") return "USD";
+  if (symbol === "€") return "EUR";
+  if (symbol === "£") return "GBP";
+  return "";
+}
+
+function parseBudgetRange(rawItem: any): BudgetRange | null {
+  const text = `${clean(rawItem?.title, 1500)}\n${clean(rawItem?.body, 5000)}`;
+  const match = text.match(/budget\s*:\s*([$€£])\s*([\d,.]+)\s*(?:-|–|to)\s*([$€£])?\s*([\d,.]+)/i);
+  if (!match) return null;
+  const min = Number(match[2].replace(/,/g, ""));
+  const max = Number(match[4].replace(/,/g, ""));
+  const currency = currencyFromSymbol(match[1] || match[3] || "");
+  if (!Number.isFinite(min) || !Number.isFinite(max) || !currency) return null;
+  return { min: Math.min(min, max), max: Math.max(min, max), currency };
+}
+
+function deterministicFitGuard(experiment: any, contact: any, rawItem: any): OutreachDraft | null {
+  const budget = parseBudgetRange(rawItem);
+  const offer = experiment.offer_price == null ? null : Number(experiment.offer_price);
+  const offerCurrency = String(experiment.offer_currency || "").toUpperCase();
+  if (!budget || offer == null || !Number.isFinite(offer) || offer <= 0 || budget.currency !== offerCurrency) return null;
+
+  if (budget.max < offer * 0.6) {
+    return {
+      fit_decision: "skip",
+      fit_score: 20,
+      fit_reason: `The source explicitly shows a ${budget.currency} ${budget.min}-${budget.max} budget, while this validation tests the unchanged ${offerCurrency} ${offer} offer. The budget ceiling is too far below the offer to treat this as a credible sales prospect.`,
+      channel: contact.source_kind?.toLowerCase().includes("freelancer") ? "Freelancer project proposal" : "Source-specific reply",
+      subject: null,
+      message: null,
+      followup: null,
+      rationale: "Do not distort the validation by discounting the offer to fit a low-budget request. Keep this item as demand evidence, not an outreach target for the current price test.",
+      personalization_points: [
+        rawItem?.title ? clean(rawItem.title, 220) : "Direct paid request",
+        `Observed budget: ${budget.currency} ${budget.min}-${budget.max}`,
+      ],
+    };
+  }
+
+  if (budget.max < offer) {
+    return {
+      fit_decision: "review",
+      fit_score: 50,
+      fit_reason: `The observed ${budget.currency} ${budget.min}-${budget.max} budget is below the ${offerCurrency} ${offer} validation offer. A human should decide whether the posted range is flexible before outreach.`,
+      channel: contact.source_kind?.toLowerCase().includes("freelancer") ? "Freelancer project proposal" : "Source-specific reply",
+      subject: null,
+      message: null,
+      followup: null,
+      rationale: "Price mismatch is material enough that V1.8 will not auto-draft a pitch around it.",
+      personalization_points: [
+        rawItem?.title ? clean(rawItem.title, 220) : "Direct paid request",
+        `Observed budget: ${budget.currency} ${budget.min}-${budget.max}`,
+      ],
+    };
+  }
+
+  return null;
+}
+
 async function createDraft(input: {
   contact: any;
   experiment: any;
@@ -44,9 +107,11 @@ async function createDraft(input: {
   rawItem: any;
   signal: any;
 }) {
+  const { contact, experiment, opportunity, rawItem, signal } = input;
+  const guarded = deterministicFitGuard(experiment, contact, rawItem);
+  if (guarded) return guarded;
   if (!config.openAiKey) throw new Error("OPENAI_API_KEY is not configured");
 
-  const { contact, experiment, opportunity, rawItem, signal } = input;
   const sourceText = [
     rawItem?.title && `Title: ${clean(rawItem.title, 1000)}`,
     rawItem?.body && `Body: ${clean(rawItem.body, 5000)}`,
@@ -120,7 +185,6 @@ async function createDraft(input: {
 export async function generateOutreachDrafts(limit = 10, options: GenerateOptions = {}) {
   const supabase = getAdminClient();
   if (!supabase) throw new Error("Supabase is not configured");
-  if (!config.openAiKey) throw new Error("OPENAI_API_KEY is not configured");
 
   const capped = Math.max(1, Math.min(limit, 30));
   let query = supabase
@@ -178,7 +242,7 @@ export async function generateOutreachDrafts(limit = 10, options: GenerateOption
       .update({
         outreach_state: "drafted",
         outreach_version: OUTREACH_VERSION,
-        outreach_model: MODEL,
+        outreach_model: draft.message || draft.followup ? MODEL : "deterministic-guard-v1.8",
         outreach_channel: draft.channel.slice(0, 300),
         outreach_subject: draft.subject?.slice(0, 300) || null,
         outreach_message: draft.message?.slice(0, 4000) || null,
