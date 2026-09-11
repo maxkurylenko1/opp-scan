@@ -98,10 +98,10 @@ export async function getOpportunity(id: string) {
   if (experiment) {
     const { data: contacts, error: contactsError } = await supabase
       .from("validation_contacts")
-      .select("contacted_at,replied_at,qualified_at,paid_at,delivered_at,lost_at,stage,amount_paid")
+      .select("contacted_at,replied_at,qualified_at,paid_at,delivered_at,lost_at,stage,amount_paid,discovery_state")
       .eq("experiment_id", experiment.id);
     if (contactsError) throw contactsError;
-    const rows = contacts || [];
+    const rows = (contacts || []).filter((c: any) => c.discovery_state !== "dismissed");
     const contactedCount = rows.filter((c: any) => c.contacted_at).length;
     const repliedCount = rows.filter((c: any) => c.replied_at).length;
     const qualifiedCount = rows.filter((c: any) => c.qualified_at).length;
