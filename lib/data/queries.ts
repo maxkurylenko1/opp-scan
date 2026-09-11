@@ -2,12 +2,13 @@ import { demoOpportunities } from "./demo";
 import { getAdminClient } from "@/lib/supabase/admin";
 import type { OpportunityView } from "@/lib/types";
 
-function toOpportunityView(x: any): OpportunityView {
+function toOpportunityView(x: any, origin: "theme" | "exact" = "exact"): OpportunityView {
   return {
     id: x.id,
     title: x.title,
     thesis: x.thesis,
     status: x.status,
+    origin,
     opportunityScore: Number(x.opportunity_score),
     confidenceScore: Number(x.confidence_score),
     targetCustomer: x.target_customer,
@@ -40,29 +41,35 @@ export async function getDashboardData() {
 
   const hasRankedThemes = (rankedThemeCount || 0) > 0;
   const hasSemantic = (semanticClusterCount || 0) > 0;
-  const clusterMode = hasRankedThemes ? "theme-v1.0" : hasSemantic ? "semantic-v1.1" : "heuristic-v1";
+  const clusterMode = hasRankedThemes ? "theme-v1.0 + semantic-v1.1" : hasSemantic ? "semantic-v1.1" : "heuristic-v1";
 
-  let data: any[] | null = null;
+  const opportunities: OpportunityView[] = [];
 
   if (hasRankedThemes) {
-    const result = await supabase
+    const { data: themes } = await supabase
       .from("opportunities")
       .select("*")
       .eq("score_version", "theme-v1.0")
       .not("theme_id", "is", null)
       .in("status", ["research", "validate", "build", "winner"])
       .order("opportunity_score", { ascending: false })
-      .limit(10);
-    data = result.data;
-  } else {
-    const result = await supabase
+      .limit(5);
+
+    opportunities.push(...(themes || []).map((x) => toOpportunityView(x, "theme")));
+  }
+
+  const remaining = Math.max(0, 10 - opportunities.length);
+  if (remaining > 0) {
+    const exactMode = hasSemantic ? "semantic-v1.1" : "heuristic-v1";
+    const { data: exact } = await supabase
       .from("opportunities")
       .select("*, problem_clusters!inner(clustering_version)")
-      .eq("problem_clusters.clustering_version", clusterMode)
+      .eq("problem_clusters.clustering_version", exactMode)
       .in("status", ["research", "validate", "build", "winner"])
       .order("opportunity_score", { ascending: false })
-      .limit(10);
-    data = result.data;
+      .limit(remaining);
+
+    opportunities.push(...(exact || []).map((x) => toOpportunityView(x, "exact")));
   }
 
   return {
@@ -70,7 +77,7 @@ export async function getDashboardData() {
     signalCount: signalCount || 0,
     clusterCount: hasRankedThemes ? (themeCount || 0) : hasSemantic ? (semanticClusterCount || 0) : (heuristicClusterCount || 0),
     clusterMode,
-    opportunities: (data || []).map(toOpportunityView),
+    opportunities,
   };
 }
 
@@ -79,5 +86,5 @@ export async function getOpportunity(id: string) {
   if (!supabase) return demoOpportunities.find((x) => x.id === id) || null;
   const { data } = await supabase.from("opportunities").select("*").eq("id", id).maybeSingle();
   if (!data) return null;
-  return toOpportunityView(data);
+  return toOpportunityView(data, data.theme_id ? "theme" : "exact");
 }
