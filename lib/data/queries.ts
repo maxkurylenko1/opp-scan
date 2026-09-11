@@ -18,6 +18,7 @@ function toOpportunityView(x: any, origin: "theme" | "exact" = "exact"): Opportu
     mvpScope: x.mvp_scope,
     acquisitionChannel: x.acquisition_channel,
     validationExperiment: x.validation_experiment,
+    pricingHypothesis: x.pricing_hypothesis,
   };
 }
 
@@ -86,5 +87,51 @@ export async function getOpportunity(id: string) {
   if (!supabase) return demoOpportunities.find((x) => x.id === id) || null;
   const { data } = await supabase.from("opportunities").select("*").eq("id", id).maybeSingle();
   if (!data) return null;
-  return toOpportunityView(data, data.theme_id ? "theme" : "exact");
+
+  const base = toOpportunityView(data, data.theme_id ? "theme" : "exact");
+  if (!data.theme_id) return base;
+
+  const [{ data: theme }, { data: competitors }, { data: evidence }] = await Promise.all([
+    supabase
+      .from("opportunity_themes")
+      .select("market_summary,market_researched_at")
+      .eq("id", data.theme_id)
+      .maybeSingle(),
+    supabase
+      .from("competitors")
+      .select("name,url,price_min,price_max,currency,billing_period,strengths,weaknesses,evidence_url")
+      .eq("opportunity_id", data.id)
+      .eq("research_version", "web-v1.4")
+      .order("price_min", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("evidence")
+      .select("claim_type,source_url,excerpt,evidence_weight")
+      .eq("opportunity_id", data.id)
+      .eq("source_kind", "web_research")
+      .order("evidence_weight", { ascending: false })
+      .limit(12),
+  ]);
+
+  return {
+    ...base,
+    marketSummary: theme?.market_summary || null,
+    marketResearchedAt: theme?.market_researched_at || null,
+    competitors: (competitors || []).map((row: any) => ({
+      name: row.name,
+      url: row.url,
+      priceMin: row.price_min == null ? null : Number(row.price_min),
+      priceMax: row.price_max == null ? null : Number(row.price_max),
+      currency: row.currency,
+      billingPeriod: row.billing_period,
+      strengths: row.strengths || [],
+      weaknesses: row.weaknesses || [],
+      evidenceUrl: row.evidence_url,
+    })),
+    marketEvidence: (evidence || []).map((row: any) => ({
+      claimType: row.claim_type,
+      sourceUrl: row.source_url,
+      excerpt: row.excerpt,
+      evidenceWeight: Number(row.evidence_weight),
+    })),
+  } satisfies OpportunityView;
 }
