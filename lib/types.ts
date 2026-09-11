@@ -27,6 +27,9 @@ export type ValidationPlanView = {
   successThreshold?: string | null;
   failureThreshold?: string | null;
   stopCondition?: string | null;
+  successPaidTarget?: number | null;
+  successDeliveredTarget?: number | null;
+  failureMaxPaid?: number | null;
   maxDays?: number | null;
   channel?: string | null;
   offer?: string | null;
@@ -36,6 +39,13 @@ export type ValidationPlanView = {
   followupMessage?: string | null;
   verdict?: string | null;
   notes?: string | null;
+  contactedCount?: number;
+  repliedCount?: number;
+  qualifiedCount?: number;
+  paidCount?: number;
+  deliveredCount?: number;
+  lostCount?: number;
+  revenueAmount?: number;
 };
 
 export type OpportunityView = {
