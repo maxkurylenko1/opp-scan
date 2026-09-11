@@ -1,21 +1,9 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { config } from "@/lib/config";
 import { reclusterSignals } from "@/lib/clustering/semantic";
 import { getAdminClient } from "@/lib/supabase/admin";
 
-const BOOTSTRAP_SHA256 = "e389e934504b6b059f92e22e652aeac1a3c5bb18bb654741f99a82c29b3e1bda";
-
-function bootstrapValid(request: Request) {
-  const token = new URL(request.url).searchParams.get("bootstrap");
-  if (!token) return false;
-  const actual = Buffer.from(createHash("sha256").update(token).digest("hex"), "utf8");
-  const expected = Buffer.from(BOOTSTRAP_SHA256, "utf8");
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
-}
-
 function authorized(request: Request) {
-  if (bootstrapValid(request)) return true;
   if (!config.cronSecret) return process.env.NODE_ENV !== "production";
   return request.headers.get("authorization") === `Bearer ${config.cronSecret}`;
 }
