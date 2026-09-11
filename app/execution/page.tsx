@@ -42,7 +42,7 @@ export default async function ExecutionPage() {
 
               <p className="muted" style={{ marginTop: 14 }}>Goal: {experiment.success_paid_count} paid / {experiment.success_delivered_count} delivered. Fail check after {experiment.failure_contact_limit || experiment.target_sample_size || 30} contacted.</p>
 
-              {admin && (
+              {admin && <>
                 <form action={addContact} className="panel" style={{ marginTop: 18 }}>
                   <input type="hidden" name="experimentId" value={experiment.id} />
                   <h3>Add prospect</h3>
@@ -56,17 +56,15 @@ export default async function ExecutionPage() {
                   </div>
                   <button type="submit" style={{ marginTop: 10 }}>Add prospect</button>
                 </form>
-              )}
 
-              <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
-                {experiment.contacts.length === 0 && <p className="muted">No prospects added yet.</p>}
-                {experiment.contacts.map((contact: any) => (
-                  <div className="card" key={contact.id}>
-                    <div className="card-top">
-                      <div><strong>{contact.name || contact.handle || "Unnamed prospect"}</strong><p className="muted">{contact.company || contact.source_kind || "—"}</p></div>
-                      <span className="badge">{contact.stage}</span>
-                    </div>
-                    {admin ? (
+                <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
+                  {experiment.contacts.length === 0 && <p className="muted">No prospects added yet.</p>}
+                  {experiment.contacts.map((contact: any) => (
+                    <div className="card" key={contact.id}>
+                      <div className="card-top">
+                        <div><strong>{contact.name || contact.handle || "Unnamed prospect"}</strong><p className="muted">{contact.company || contact.source_kind || "—"}</p></div>
+                        <span className="badge">{contact.stage}</span>
+                      </div>
                       <form action={updateContact} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 2fr auto", gap: 8, alignItems: "center" }}>
                         <input type="hidden" name="contactId" value={contact.id} />
                         <select name="stage" defaultValue={contact.stage}>{stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select>
@@ -75,18 +73,16 @@ export default async function ExecutionPage() {
                         <input name="notes" defaultValue={contact.notes || ""} placeholder="Notes" />
                         <button type="submit">Save</button>
                       </form>
-                    ) : <p className="muted">{contact.notes || contact.handle || ""}</p>}
-                  </div>
-                ))}
-              </div>
+                    </div>
+                  ))}
+                </div>
 
-              {admin && (
                 <form action={setExperimentVerdict} style={{ marginTop: 18, display: "flex", gap: 8, alignItems: "center" }}>
                   <input type="hidden" name="experimentId" value={experiment.id} />
                   <select name="verdict" defaultValue={experiment.verdict}>{["pending","pass","fail","inconclusive"].map((v) => <option key={v}>{v}</option>)}</select>
                   <button type="submit">Set verdict</button>
                 </form>
-              )}
+              </>}
             </section>
           );
         })}
