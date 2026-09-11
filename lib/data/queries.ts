@@ -55,7 +55,6 @@ export async function getDashboardData() {
       .in("status", ["research", "validate", "build", "winner"])
       .order("opportunity_score", { ascending: false })
       .limit(5);
-
     opportunities.push(...(themes || []).map((x) => toOpportunityView(x, "theme")));
   }
 
@@ -69,7 +68,6 @@ export async function getDashboardData() {
       .in("status", ["research", "validate", "build", "winner"])
       .order("opportunity_score", { ascending: false })
       .limit(remaining);
-
     opportunities.push(...(exact || []).map((x) => toOpportunityView(x, "exact")));
   }
 
@@ -91,63 +89,65 @@ export async function getOpportunity(id: string) {
   const base = toOpportunityView(data, data.theme_id ? "theme" : "exact");
   const { data: experiment } = await supabase
     .from("experiments")
-    .select("id,hypothesis,method,audience,target_sample_size,success_metric,success_threshold,failure_threshold,stop_condition,success_paid_target,success_delivered_target,failure_max_paid,max_days,channel,offer,offer_price,offer_currency,outreach_message,followup_message,verdict,notes,contacted_count,replied_count,qualified_count,paid_count,delivered_count,lost_count,revenue_amount")
+    .select("id,hypothesis,method,audience,target_sample_size,success_metric,success_threshold,failure_threshold,stop_condition,success_paid_count,success_delivered_count,failure_contact_limit,failure_paid_below_count,max_days,channel,offer,offer_price,offer_currency,outreach_message,followup_message,verdict,notes,execution_state")
     .eq("opportunity_id", data.id)
     .eq("validation_version", "validation-v1.5")
     .maybeSingle();
 
-  const validationPlan = experiment ? {
-    id: experiment.id,
-    hypothesis: experiment.hypothesis,
-    method: experiment.method,
-    audience: experiment.audience,
-    targetSampleSize: experiment.target_sample_size,
-    successMetric: experiment.success_metric,
-    successThreshold: experiment.success_threshold,
-    failureThreshold: experiment.failure_threshold,
-    stopCondition: experiment.stop_condition,
-    successPaidTarget: experiment.success_paid_target,
-    successDeliveredTarget: experiment.success_delivered_target,
-    failureMaxPaid: experiment.failure_max_paid,
-    maxDays: experiment.max_days,
-    channel: experiment.channel,
-    offer: experiment.offer,
-    offerPrice: experiment.offer_price == null ? null : Number(experiment.offer_price),
-    offerCurrency: experiment.offer_currency,
-    outreachMessage: experiment.outreach_message,
-    followupMessage: experiment.followup_message,
-    verdict: experiment.verdict,
-    notes: experiment.notes,
-    contactedCount: Number(experiment.contacted_count || 0),
-    repliedCount: Number(experiment.replied_count || 0),
-    qualifiedCount: Number(experiment.qualified_count || 0),
-    paidCount: Number(experiment.paid_count || 0),
-    deliveredCount: Number(experiment.delivered_count || 0),
-    lostCount: Number(experiment.lost_count || 0),
-    revenueAmount: Number(experiment.revenue_amount || 0),
-  } : null;
+  let validationPlan = null;
+  if (experiment) {
+    const { data: contacts, error: contactsError } = await supabase
+      .from("validation_contacts")
+      .select("contacted_at,replied_at,qualified_at,paid_at,delivered_at,lost_at,stage,amount_paid")
+      .eq("experiment_id", experiment.id);
+    if (contactsError) throw contactsError;
+    const rows = contacts || [];
+    const contactedCount = rows.filter((c: any) => c.contacted_at).length;
+    const repliedCount = rows.filter((c: any) => c.replied_at).length;
+    const qualifiedCount = rows.filter((c: any) => c.qualified_at).length;
+    const paidCount = rows.filter((c: any) => c.paid_at || Number(c.amount_paid) > 0).length;
+    const deliveredCount = rows.filter((c: any) => c.delivered_at).length;
+    const lostCount = rows.filter((c: any) => c.lost_at || c.stage === "lost").length;
+    const revenueAmount = rows.reduce((sum: number, c: any) => sum + Number(c.amount_paid || 0), 0);
+
+    validationPlan = {
+      id: experiment.id,
+      hypothesis: experiment.hypothesis,
+      method: experiment.method,
+      audience: experiment.audience,
+      targetSampleSize: experiment.target_sample_size,
+      successMetric: experiment.success_metric,
+      successThreshold: experiment.success_threshold,
+      failureThreshold: experiment.failure_threshold,
+      stopCondition: experiment.stop_condition,
+      successPaidTarget: experiment.success_paid_count,
+      successDeliveredTarget: experiment.success_delivered_count,
+      failureMaxPaid: experiment.failure_paid_below_count == null ? null : Math.max(0, Number(experiment.failure_paid_below_count) - 1),
+      maxDays: experiment.max_days,
+      channel: experiment.channel,
+      offer: experiment.offer,
+      offerPrice: experiment.offer_price == null ? null : Number(experiment.offer_price),
+      offerCurrency: experiment.offer_currency,
+      outreachMessage: experiment.outreach_message,
+      followupMessage: experiment.followup_message,
+      verdict: experiment.verdict,
+      notes: experiment.notes,
+      contactedCount,
+      repliedCount,
+      qualifiedCount,
+      paidCount,
+      deliveredCount,
+      lostCount,
+      revenueAmount,
+    };
+  }
 
   if (!data.theme_id) return { ...base, validationPlan } satisfies OpportunityView;
 
   const [{ data: theme }, { data: competitors }, { data: evidence }] = await Promise.all([
-    supabase
-      .from("opportunity_themes")
-      .select("market_summary,market_researched_at")
-      .eq("id", data.theme_id)
-      .maybeSingle(),
-    supabase
-      .from("competitors")
-      .select("name,url,price_min,price_max,currency,billing_period,strengths,weaknesses,evidence_url")
-      .eq("opportunity_id", data.id)
-      .eq("research_version", "web-v1.4")
-      .order("price_min", { ascending: true, nullsFirst: false }),
-    supabase
-      .from("evidence")
-      .select("claim_type,source_url,excerpt,evidence_weight")
-      .eq("opportunity_id", data.id)
-      .eq("source_kind", "web_research")
-      .order("evidence_weight", { ascending: false })
-      .limit(12),
+    supabase.from("opportunity_themes").select("market_summary,market_researched_at").eq("id", data.theme_id).maybeSingle(),
+    supabase.from("competitors").select("name,url,price_min,price_max,currency,billing_period,strengths,weaknesses,evidence_url").eq("opportunity_id", data.id).eq("research_version", "web-v1.4").order("price_min", { ascending: true, nullsFirst: false }),
+    supabase.from("evidence").select("claim_type,source_url,excerpt,evidence_weight").eq("opportunity_id", data.id).eq("source_kind", "web_research").order("evidence_weight", { ascending: false }).limit(12),
   ]);
 
   return {
