@@ -24,6 +24,15 @@ function fitLabel(contact: any) {
   return `${contact.outreach_fit_decision}${score}`;
 }
 
+function queueLabel(contact: any) {
+  if (contact.stage !== "prospect") return contact.stage.toUpperCase();
+  if (contact.outreach_fit_decision === "send" && contact.outreach_state === "approved") return "READY";
+  if (contact.outreach_fit_decision === "send" && contact.outreach_state === "drafted") return "APPROVE DRAFT";
+  if (contact.outreach_fit_decision === "review") return "REVIEW";
+  if (contact.outreach_fit_decision === "skip") return "SKIP";
+  return "PENDING";
+}
+
 export default async function ExecutionPage() {
   const admin = await isAdminSession();
   if (!admin) redirect("/admin");
@@ -32,7 +41,7 @@ export default async function ExecutionPage() {
   return (
     <div className="page-shell">
       <div className="section-heading">
-        <div><p className="eyebrow">V1.8 EXECUTION</p><h1>Validation CRM + Outreach Assistant</h1></div>
+        <div><p className="eyebrow">V1.8.1 EXECUTION</p><h1>Ready-to-contact Queue</h1></div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <form action={discoverProspects}><button type="submit">Discover prospects</button></form>
           <form action={generateAllOutreach}><button type="submit">Generate missing drafts</button></form>
@@ -40,7 +49,7 @@ export default async function ExecutionPage() {
           <form action="/api/admin/logout" method="post"><button type="submit">Log out</button></form>
         </div>
       </div>
-      <p className="muted">Radar finds prospects and prepares personalized drafts from public evidence. You review and copy them manually; V1.8 never sends messages automatically.</p>
+      <p className="muted">SEND-ready prospects come first, then drafts needing approval, human-review cases, pending candidates and SKIP demand evidence. Radar never sends outreach automatically.</p>
 
       <div style={{ display: "grid", gap: 28, marginTop: 28 }}>
         {data.experiments.map((experiment: any) => {
@@ -55,9 +64,30 @@ export default async function ExecutionPage() {
                 <Link href={`/opportunities/${experiment.opportunity_id}`}>Opportunity ↗</Link>
               </div>
 
+              <div className="panel" style={{ marginTop: 18 }}>
+                <div className="card-top">
+                  <div>
+                    <p className="eyebrow">PRE-TEST QUEUE</p>
+                    <h3>{m.readyToContact > 0 ? "Ready for manual outreach" : "Build the ready queue before contacting"}</h3>
+                  </div>
+                  <strong>{m.contacted} / {m.targetContacts} contacted</strong>
+                </div>
+                <div className="stats-grid" style={{ marginTop: 14 }}>
+                  <div className="stat-card"><span>Ready</span><strong>{m.readyToContact}</strong></div>
+                  <div className="stat-card"><span>Drafts to approve</span><strong>{m.draftsToApprove}</strong></div>
+                  <div className="stat-card"><span>Need review</span><strong>{m.needsReview}</strong></div>
+                  <div className="stat-card"><span>Awaiting fit</span><strong>{m.awaitingFit}</strong></div>
+                  <div className="stat-card"><span>Skipped</span><strong>{m.skippedOutreach}</strong></div>
+                </div>
+                {m.readyToContact === 0 && (
+                  <p className="muted" style={{ marginTop: 12 }}>
+                    Do not count SKIP prospects as failed outreach. They confirm demand but do not fit the current offer/price test.
+                  </p>
+                )}
+              </div>
+
               <div className="stats-grid" style={{ marginTop: 18 }}>
                 <div className="stat-card"><span>Prospects</span><strong>{m.prospects}</strong></div>
-                <div className="stat-card"><span>Suggested</span><strong>{m.suggested}</strong></div>
                 <div className="stat-card"><span>Contacted</span><strong>{m.contacted}</strong></div>
                 <div className="stat-card"><span>Replies</span><strong>{m.replied}</strong></div>
                 <div className="stat-card"><span>Qualified</span><strong>{m.qualified}</strong></div>
@@ -67,7 +97,7 @@ export default async function ExecutionPage() {
               </div>
 
               <p className="muted" style={{ marginTop: 14 }}>
-                Auto-pass at {experiment.success_paid_count || 3} paid / {experiment.success_delivered_count || 2} delivered. Auto-fail after {experiment.failure_contact_limit || experiment.target_sample_size || 30} contacted if paid &lt; {experiment.failure_paid_below_count || 2}.
+                Test stays fixed at {experiment.offer_currency || "USD"} {Number(experiment.offer_price || 0).toFixed(0)}. Auto-pass at {experiment.success_paid_count || 3} paid / {experiment.success_delivered_count || 2} delivered. Auto-fail after {m.targetContacts} contacted if paid &lt; {experiment.failure_paid_below_count || 2}.
               </p>
 
               <form action={addContact} className="panel" style={{ marginTop: 18 }}>
@@ -88,6 +118,7 @@ export default async function ExecutionPage() {
                 {experiment.contacts.length === 0 && <p className="muted">No prospects yet. Run discovery or add one manually.</p>}
                 {experiment.contacts.map((contact: any) => {
                   const fit = fitLabel(contact);
+                  const queue = queueLabel(contact);
                   const canApproveDraft = contact.outreach_state === "drafted" && contact.outreach_fit_decision !== "skip";
                   const hasDraft = Boolean(contact.outreach_message || contact.outreach_followup || contact.outreach_fit_decision);
                   const points = Array.isArray(contact.outreach_personalization) ? contact.outreach_personalization : [];
@@ -96,6 +127,7 @@ export default async function ExecutionPage() {
                     <div className="card" key={contact.id}>
                       <div className="card-top">
                         <div>
+                          <p className="eyebrow">{queue}</p>
                           <strong>{contact.name || contact.handle || "Unnamed prospect"}</strong>
                           <p className="muted">{contact.company || contact.source_kind || contact.handle || "—"}</p>
                         </div>
@@ -134,7 +166,7 @@ export default async function ExecutionPage() {
                         <div className="card-top">
                           <div>
                             <p className="eyebrow">V1.8 OUTREACH</p>
-                            <h3>{hasDraft ? "Personalized draft" : "No draft yet"}</h3>
+                            <h3>{hasDraft ? "Personalized draft / fit decision" : "No draft yet"}</h3>
                           </div>
                           <form action={generateContactOutreach}>
                             <input type="hidden" name="contactId" value={contact.id} />
@@ -162,8 +194,8 @@ export default async function ExecutionPage() {
 
                           {contact.outreach_fit_decision === "skip" ? (
                             <div className="card" style={{ marginTop: 12 }}>
-                              <strong>Not recommended to send</strong>
-                              <p className="muted">The exact validation offer does not fit this prospect well enough. Radar intentionally did not force a sales message.</p>
+                              <strong>SKIP — keep as demand evidence</strong>
+                              <p className="muted">The exact validation offer does not fit this prospect well enough. Do not contact them for this price test and do not count them toward the {m.targetContacts}-contact sample.</p>
                             </div>
                           ) : <>
                             {contact.outreach_subject && (
