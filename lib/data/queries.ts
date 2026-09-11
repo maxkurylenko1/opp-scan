@@ -89,7 +89,35 @@ export async function getOpportunity(id: string) {
   if (!data) return null;
 
   const base = toOpportunityView(data, data.theme_id ? "theme" : "exact");
-  if (!data.theme_id) return base;
+  const { data: experiment } = await supabase
+    .from("experiments")
+    .select("id,hypothesis,method,audience,target_sample_size,success_metric,success_threshold,failure_threshold,stop_condition,max_days,channel,offer,offer_price,offer_currency,outreach_message,followup_message,verdict,notes")
+    .eq("opportunity_id", data.id)
+    .eq("validation_version", "validation-v1.5")
+    .maybeSingle();
+
+  const validationPlan = experiment ? {
+    id: experiment.id,
+    hypothesis: experiment.hypothesis,
+    method: experiment.method,
+    audience: experiment.audience,
+    targetSampleSize: experiment.target_sample_size,
+    successMetric: experiment.success_metric,
+    successThreshold: experiment.success_threshold,
+    failureThreshold: experiment.failure_threshold,
+    stopCondition: experiment.stop_condition,
+    maxDays: experiment.max_days,
+    channel: experiment.channel,
+    offer: experiment.offer,
+    offerPrice: experiment.offer_price == null ? null : Number(experiment.offer_price),
+    offerCurrency: experiment.offer_currency,
+    outreachMessage: experiment.outreach_message,
+    followupMessage: experiment.followup_message,
+    verdict: experiment.verdict,
+    notes: experiment.notes,
+  } : null;
+
+  if (!data.theme_id) return { ...base, validationPlan } satisfies OpportunityView;
 
   const [{ data: theme }, { data: competitors }, { data: evidence }] = await Promise.all([
     supabase
@@ -133,5 +161,6 @@ export async function getOpportunity(id: string) {
       excerpt: row.excerpt,
       evidenceWeight: Number(row.evidence_weight),
     })),
+    validationPlan,
   } satisfies OpportunityView;
 }
