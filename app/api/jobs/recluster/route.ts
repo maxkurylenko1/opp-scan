@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { config } from "@/lib/config";
 import { reclusterSignals } from "@/lib/clustering/semantic";
+import { generateOutreachDrafts } from "@/lib/outreach/generate";
 import { getAdminClient } from "@/lib/supabase/admin";
 
 function authorized(request: Request) {
@@ -29,7 +30,9 @@ async function run(limit: number, pendingOnly: boolean) {
     });
     if (prospectError) throw prospectError;
 
-    return NextResponse.json({ ok: true, ...result, ranking, prospects });
+    const outreach = await generateOutreachDrafts(5, { autoOnly: true });
+
+    return NextResponse.json({ ok: true, ...result, ranking, prospects, outreach });
   } catch (error) {
     console.error("semantic recluster failed", error);
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
