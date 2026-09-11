@@ -17,6 +17,27 @@ export type MarketEvidenceView = {
   evidenceWeight: number;
 };
 
+export type ValidationPlanView = {
+  id: string;
+  hypothesis: string;
+  method: string;
+  audience?: string | null;
+  targetSampleSize?: number | null;
+  successMetric?: string | null;
+  successThreshold?: string | null;
+  failureThreshold?: string | null;
+  stopCondition?: string | null;
+  maxDays?: number | null;
+  channel?: string | null;
+  offer?: string | null;
+  offerPrice?: number | null;
+  offerCurrency?: string | null;
+  outreachMessage?: string | null;
+  followupMessage?: string | null;
+  verdict?: string | null;
+  notes?: string | null;
+};
+
 export type OpportunityView = {
   id: string;
   title: string;
@@ -37,4 +58,5 @@ export type OpportunityView = {
   marketResearchedAt?: string | null;
   competitors?: CompetitorView[];
   marketEvidence?: MarketEvidenceView[];
+  validationPlan?: ValidationPlanView | null;
 };
