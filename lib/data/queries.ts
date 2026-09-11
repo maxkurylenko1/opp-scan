@@ -91,7 +91,7 @@ export async function getOpportunity(id: string) {
   const base = toOpportunityView(data, data.theme_id ? "theme" : "exact");
   const { data: experiment } = await supabase
     .from("experiments")
-    .select("id,hypothesis,method,audience,target_sample_size,success_metric,success_threshold,failure_threshold,stop_condition,max_days,channel,offer,offer_price,offer_currency,outreach_message,followup_message,verdict,notes")
+    .select("id,hypothesis,method,audience,target_sample_size,success_metric,success_threshold,failure_threshold,stop_condition,success_paid_target,success_delivered_target,failure_max_paid,max_days,channel,offer,offer_price,offer_currency,outreach_message,followup_message,verdict,notes,contacted_count,replied_count,qualified_count,paid_count,delivered_count,lost_count,revenue_amount")
     .eq("opportunity_id", data.id)
     .eq("validation_version", "validation-v1.5")
     .maybeSingle();
@@ -106,6 +106,9 @@ export async function getOpportunity(id: string) {
     successThreshold: experiment.success_threshold,
     failureThreshold: experiment.failure_threshold,
     stopCondition: experiment.stop_condition,
+    successPaidTarget: experiment.success_paid_target,
+    successDeliveredTarget: experiment.success_delivered_target,
+    failureMaxPaid: experiment.failure_max_paid,
     maxDays: experiment.max_days,
     channel: experiment.channel,
     offer: experiment.offer,
@@ -115,6 +118,13 @@ export async function getOpportunity(id: string) {
     followupMessage: experiment.followup_message,
     verdict: experiment.verdict,
     notes: experiment.notes,
+    contactedCount: Number(experiment.contacted_count || 0),
+    repliedCount: Number(experiment.replied_count || 0),
+    qualifiedCount: Number(experiment.qualified_count || 0),
+    paidCount: Number(experiment.paid_count || 0),
+    deliveredCount: Number(experiment.delivered_count || 0),
+    lostCount: Number(experiment.lost_count || 0),
+    revenueAmount: Number(experiment.revenue_amount || 0),
   } : null;
 
   if (!data.theme_id) return { ...base, validationPlan } satisfies OpportunityView;
