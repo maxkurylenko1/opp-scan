@@ -5,6 +5,12 @@ const MODEL = "text-embedding-3-small";
 const DIMENSIONS = 1536;
 const ASSIGNMENT = "semantic-v1.1";
 
+const STOPWORDS = new Set([
+  "the","and","for","with","from","into","inside","without","through","about","this","that","these","those",
+  "add","update","implement","validate","support","official","version","production","issue","model","tool","tools",
+  "workflow","workflows","system","systems","client","service","services","data","using","use","new","clear",
+]);
+
 type SignalRow = {
   id: string;
   published_at: string | null;
@@ -14,6 +20,9 @@ type SignalRow = {
   problem: string;
   workflow: string | null;
   workaround: string | null;
+  pain_score: number;
+  purchase_intent_score: number;
+  evidence_quality_score: number;
 };
 
 type MatchRow = {
@@ -39,6 +48,34 @@ function vectorLiteral(vector: number[]) {
   return `[${vector.join(",")}]`;
 }
 
+function tokens(value: string) {
+  return new Set(
+    value.toLowerCase()
+      .replace(/[^a-z0-9а-яё_-]+/gi, " ")
+      .split(/\s+/)
+      .map((x) => x.trim())
+      .filter((x) => x.length >= 3 && !STOPWORDS.has(x)),
+  );
+}
+
+function hasSharedSubject(a: string, b: string) {
+  const aa = tokens(a);
+  const bb = tokens(b);
+  for (const token of aa) if (bb.has(token)) return true;
+  return false;
+}
+
+function isNoise(signal: SignalRow) {
+  const p = signal.problem.trim().toLowerCase();
+  if (p.includes("digest")) return true;
+  if (p.startsWith("arxiv summary")) return true;
+  if (/^top\s+\d+\s+.*\b(companies|agencies|tools|apps)\b/.test(p)) return true;
+  if (/what\s+.+\s+teach(es)?\s+us\s+about/.test(p)) return true;
+  if (signal.evidence_quality_score < 6) return true;
+  if (signal.pain_score < 5 && signal.purchase_intent_score < 5) return true;
+  return false;
+}
+
 async function embed(inputs: string[]) {
   if (!config.openAiKey) throw new Error("OPENAI_API_KEY is not configured");
   const response = await fetch("https://api.openai.com/v1/embeddings", {
@@ -54,10 +91,14 @@ async function embed(inputs: string[]) {
   return body.data.sort((a, b) => a.index - b.index).map((item) => item.embedding);
 }
 
-function chooseMatch(matches: MatchRow[], category: string | null) {
-  const sameCategory = matches.find((m) => m.category === category && Number(m.similarity) >= 0.72);
-  if (sameCategory) return sameCategory;
-  return matches.find((m) => Number(m.similarity) >= 0.80) || null;
+function chooseMatch(matches: MatchRow[], signal: SignalRow) {
+  for (const match of matches) {
+    const similarity = Number(match.similarity);
+    if (similarity >= 0.76) return match;
+    if (match.category === signal.category && similarity >= 0.68) return match;
+    if (match.category === signal.category && similarity >= 0.56 && hasSharedSubject(match.name, signal.problem)) return match;
+  }
+  return null;
 }
 
 export async function reclusterSignals(limit = 100) {
@@ -66,13 +107,14 @@ export async function reclusterSignals(limit = 100) {
 
   const { data: signals, error } = await supabase
     .from("signals")
-    .select("id,published_at,persona,industry,category,problem,workflow,workaround")
+    .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score")
     .eq("is_actionable", true)
     .order("published_at", { ascending: true })
     .limit(Math.max(1, Math.min(limit, 500)));
   if (error) throw error;
 
-  const rows = (signals || []) as SignalRow[];
+  const candidates = (signals || []) as SignalRow[];
+  const rows = candidates.filter((signal) => !isNoise(signal));
   let embedded = 0;
   let created = 0;
   let assigned = 0;
@@ -96,14 +138,14 @@ export async function reclusterSignals(limit = 100) {
 
       const { data: matches, error: matchError } = await supabase.rpc("match_problem_clusters", {
         query_embedding: vectorText,
-        match_threshold: 0.70,
-        match_count: 8,
+        match_threshold: 0.55,
+        match_count: 10,
         version_filter: ASSIGNMENT,
       });
       if (matchError) throw matchError;
 
       let clusterId: string;
-      const match = chooseMatch((matches || []) as MatchRow[], signal.category);
+      const match = chooseMatch((matches || []) as MatchRow[], signal);
       if (match) {
         clusterId = match.id;
         await supabase.from("problem_clusters").update({ last_seen_at: signal.published_at || now, updated_at: now }).eq("id", clusterId);
@@ -152,5 +194,14 @@ export async function reclusterSignals(limit = 100) {
   const { error: metricsError } = await supabase.rpc("refresh_semantic_cluster_metrics");
   if (metricsError) throw metricsError;
 
-  return { model: MODEL, dimensions: DIMENSIONS, processed: rows.length, embedded, assigned, clustersCreated: created };
+  return {
+    model: MODEL,
+    dimensions: DIMENSIONS,
+    candidates: candidates.length,
+    filteredNoise: candidates.length - rows.length,
+    processed: rows.length,
+    embedded,
+    assigned,
+    clustersCreated: created,
+  };
 }
