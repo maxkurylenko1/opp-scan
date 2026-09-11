@@ -4,7 +4,7 @@ import { config } from "@/lib/config";
 import { reclusterSignals } from "@/lib/clustering/semantic";
 import { getAdminClient } from "@/lib/supabase/admin";
 
-const BOOTSTRAP_SHA256 = "5af6eda3621c2c165ebb54e82764b2aa8bedfb529a0a3bdc614d3952edfc9893";
+const BOOTSTRAP_SHA256 = "78ba9713bc1c9f40f3cd404067655d7d92541d0098aff63d40869db15036b52b";
 
 function bootstrapValid(request: Request) {
   const token = new URL(request.url).searchParams.get("bootstrap");
@@ -22,7 +22,6 @@ function authorized(request: Request) {
 
 async function run(limit: number, pendingOnly: boolean) {
   if (!config.openAiKey) return NextResponse.json({ error: "OPENAI_API_KEY is not configured" }, { status: 503 });
-
   try {
     const result = await reclusterSignals(limit, { pendingOnly });
     const supabase = getAdminClient();
