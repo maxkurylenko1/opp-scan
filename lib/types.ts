@@ -3,6 +3,7 @@ export type OpportunityView = {
   title: string;
   thesis: string;
   status: string;
+  origin?: "theme" | "exact";
   opportunityScore: number;
   confidenceScore: number;
   targetCustomer?: string | null;
