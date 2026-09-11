@@ -18,6 +18,7 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const item = await getOpportunity(id);
   if (!item) notFound();
+  const plan = item.validationPlan;
 
   return (
     <div className="page-shell">
@@ -36,11 +37,48 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
         <p className="muted">{item.mvpScope || "Validate the painful workflow before building."}</p>
         <h3>Pricing hypothesis</h3>
         <p className="muted">{item.pricingHypothesis || "Validate willingness to pay before setting price."}</p>
-        <h3>Validation experiment</h3>
-        <p className="muted">{item.validationExperiment || "Interview 10 target users and ask for a commitment, not an opinion."}</p>
         <h3>Biggest risk</h3>
         <p className="muted">{item.biggestRisk || "Current evidence may be too weak or too concentrated in one source."}</p>
       </div>
+
+      {plan && (
+        <div className="panel" style={{ marginTop: 24 }}>
+          <p className="eyebrow">VALIDATION ENGINE · {plan.verdict || "pending"}</p>
+          <h2>Paid validation plan</h2>
+          <h3>Hypothesis</h3>
+          <p className="muted">{plan.hypothesis}</p>
+          <h3>Offer</h3>
+          <p className="muted">{plan.offer || "—"}</p>
+          <div className="meta" style={{ marginTop: 12 }}>
+            <div>Price<strong>{plan.offerPrice != null ? `${plan.offerCurrency || ""} ${plan.offerPrice}`.trim() : "TBD"}</strong></div>
+            <div>Prospects<strong>{plan.targetSampleSize || "—"}</strong></div>
+            <div>Window<strong>{plan.maxDays ? `${plan.maxDays} days` : "—"}</strong></div>
+            <div>Channel<strong>{plan.channel || "—"}</strong></div>
+          </div>
+          <h3>Who to contact</h3>
+          <p className="muted">{plan.audience || "—"}</p>
+          <h3>Method</h3>
+          <p className="muted">{plan.method}</p>
+          <h3>Success</h3>
+          <p className="muted"><strong>{plan.successMetric || "Metric"}:</strong> {plan.successThreshold || "—"}</p>
+          <h3>Failure / stop</h3>
+          <p className="muted">{plan.failureThreshold || "—"}</p>
+          <p className="muted">Stop when: {plan.stopCondition || "—"}</p>
+          <h3>First outreach</h3>
+          <div className="card" style={{ marginTop: 8 }}><p style={{ whiteSpace: "pre-wrap" }}>{plan.outreachMessage || "—"}</p></div>
+          <h3>Follow-up</h3>
+          <div className="card" style={{ marginTop: 8 }}><p style={{ whiteSpace: "pre-wrap" }}>{plan.followupMessage || "—"}</p></div>
+          {plan.notes && <><h3>Notes</h3><p className="muted">{plan.notes}</p></>}
+        </div>
+      )}
+
+      {!plan && item.validationExperiment && (
+        <div className="panel" style={{ marginTop: 24 }}>
+          <p className="eyebrow">VALIDATION</p>
+          <h2>Suggested experiment</h2>
+          <p className="muted">{item.validationExperiment}</p>
+        </div>
+      )}
 
       {item.marketSummary && (
         <div className="panel" style={{ marginTop: 24 }}>
