@@ -19,9 +19,9 @@ async function run(limit: number, pendingOnly: boolean) {
     const result = await reclusterSignals(limit, { pendingOnly });
     const supabase = getAdminClient();
     if (!supabase) throw new Error("Supabase is not configured");
-    const { data: ranked, error: rankError } = await supabase.rpc("radar_weekly_rank");
+    const { data: ranking, error: rankError } = await supabase.rpc("radar_refresh_and_rank");
     if (rankError) throw rankError;
-    return NextResponse.json({ ok: true, ...result, ranked });
+    return NextResponse.json({ ok: true, ...result, ranking });
   } catch (error) {
     console.error("semantic recluster failed", error);
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
