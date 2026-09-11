@@ -4,6 +4,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 const MODEL = "text-embedding-3-small";
 const DIMENSIONS = 1536;
 const ASSIGNMENT = "semantic-v1.1";
+const NOISE_MARKER = "noise-filter-v1.1";
 
 const STOPWORDS = new Set([
   "the","and","for","with","from","into","inside","without","through","about","this","that","these","those",
@@ -23,6 +24,7 @@ type SignalRow = {
   pain_score: number;
   purchase_intent_score: number;
   evidence_quality_score: number;
+  embedding_model: string | null;
 };
 
 type MatchRow = {
@@ -31,6 +33,10 @@ type MatchRow = {
   name: string;
   category: string | null;
   similarity: number;
+};
+
+type ReclusterOptions = {
+  pendingOnly?: boolean;
 };
 
 function embeddingText(signal: SignalRow) {
@@ -101,23 +107,45 @@ function chooseMatch(matches: MatchRow[], signal: SignalRow) {
   return null;
 }
 
-export async function reclusterSignals(limit = 100) {
+export async function reclusterSignals(limit = 100, options: ReclusterOptions = {}) {
   const supabase = getAdminClient();
   if (!supabase) throw new Error("Supabase is not configured");
 
-  const { data: signals, error } = await supabase
-    .from("signals")
-    .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score")
-    .eq("is_actionable", true)
-    .order("published_at", { ascending: true })
-    .limit(Math.max(1, Math.min(limit, 500)));
+  const cappedLimit = Math.max(1, Math.min(limit, 500));
+  const [{ data: signals, error }, { data: links, error: linksError }] = await Promise.all([
+    supabase
+      .from("signals")
+      .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score,embedding_model")
+      .eq("is_actionable", true)
+      .order("published_at", { ascending: false })
+      .limit(500),
+    supabase.from("cluster_signals").select("signal_id").eq("assignment_method", ASSIGNMENT),
+  ]);
   if (error) throw error;
+  if (linksError) throw linksError;
 
-  const candidates = (signals || []) as SignalRow[];
+  const assigned = new Set((links || []).map((row) => row.signal_id as string));
+  let candidates = (signals || []) as SignalRow[];
+  if (options.pendingOnly) {
+    candidates = candidates.filter((signal) => !assigned.has(signal.id) && signal.embedding_model !== NOISE_MARKER);
+  }
+  candidates = candidates.slice(0, cappedLimit);
+
+  const noiseRows = candidates.filter(isNoise);
   const rows = candidates.filter((signal) => !isNoise(signal));
+  const now = new Date().toISOString();
+
+  if (noiseRows.length) {
+    const { error: noiseError } = await supabase
+      .from("signals")
+      .update({ embedding_model: NOISE_MARKER, embedding_updated_at: now })
+      .in("id", noiseRows.map((signal) => signal.id));
+    if (noiseError) throw noiseError;
+  }
+
   let embedded = 0;
   let created = 0;
-  let assigned = 0;
+  let assignedCount = 0;
 
   for (let start = 0; start < rows.length; start += 32) {
     const batch = rows.slice(start, start + 32);
@@ -127,11 +155,11 @@ export async function reclusterSignals(limit = 100) {
       const signal = batch[i];
       const vector = vectors[i];
       const vectorText = vectorLiteral(vector);
-      const now = new Date().toISOString();
+      const updatedAt = new Date().toISOString();
 
       const { error: updateSignalError } = await supabase
         .from("signals")
-        .update({ embedding: vectorText, embedding_model: MODEL, embedding_updated_at: now })
+        .update({ embedding: vectorText, embedding_model: MODEL, embedding_updated_at: updatedAt })
         .eq("id", signal.id);
       if (updateSignalError) throw updateSignalError;
       embedded++;
@@ -148,7 +176,7 @@ export async function reclusterSignals(limit = 100) {
       const match = chooseMatch((matches || []) as MatchRow[], signal);
       if (match) {
         clusterId = match.id;
-        await supabase.from("problem_clusters").update({ last_seen_at: signal.published_at || now, updated_at: now }).eq("id", clusterId);
+        await supabase.from("problem_clusters").update({ last_seen_at: signal.published_at || updatedAt, updated_at: updatedAt }).eq("id", clusterId);
       } else {
         const slug = `semantic-${signal.id}`;
         const { data: cluster, error: clusterError } = await supabase
@@ -160,8 +188,8 @@ export async function reclusterSignals(limit = 100) {
             target_customer: signal.persona || "Unknown",
             category: signal.category || "other",
             status: "watching",
-            first_seen_at: signal.published_at || now,
-            last_seen_at: signal.published_at || now,
+            first_seen_at: signal.published_at || updatedAt,
+            last_seen_at: signal.published_at || updatedAt,
             embedding: vectorText,
             clustering_version: ASSIGNMENT,
           })
@@ -187,7 +215,7 @@ export async function reclusterSignals(limit = 100) {
         assignment_method: ASSIGNMENT,
       });
       if (linkError) throw linkError;
-      assigned++;
+      assignedCount++;
     }
   }
 
@@ -197,11 +225,12 @@ export async function reclusterSignals(limit = 100) {
   return {
     model: MODEL,
     dimensions: DIMENSIONS,
+    pendingOnly: Boolean(options.pendingOnly),
     candidates: candidates.length,
-    filteredNoise: candidates.length - rows.length,
+    filteredNoise: noiseRows.length,
     processed: rows.length,
     embedded,
-    assigned,
+    assigned: assignedCount,
     clustersCreated: created,
   };
 }
