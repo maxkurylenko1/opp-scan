@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { isAdminSession } from "@/lib/auth/admin";
 import { getAdminClient } from "@/lib/supabase/admin";
 
-const STAGES = new Set(["new","contacted","replied","qualified","paid","delivered","lost"]);
+const STAGES = new Set(["prospect","contacted","replied","qualified","paid","delivered","lost"]);
 
 async function requireAdmin() {
   if (!(await isAdminSession())) throw new Error("Unauthorized");
@@ -18,52 +18,52 @@ function text(form: FormData, key: string) {
   return value || null;
 }
 
-export async function addLead(form: FormData) {
+export async function addContact(form: FormData) {
   const supabase = await requireAdmin();
   const experimentId = String(form.get("experimentId") || "");
   if (!experimentId) throw new Error("Missing experimentId");
 
-  const name = text(form, "name") || text(form, "contactDetail") || "Unnamed prospect";
-  const { error } = await supabase.from("validation_leads").insert({
+  const { error } = await supabase.from("validation_contacts").insert({
     experiment_id: experimentId,
-    name,
-    source: text(form, "source"),
-    profile_url: text(form, "profileUrl"),
-    contact_detail: text(form, "contactDetail"),
+    name: text(form, "name"),
+    handle: text(form, "handle"),
+    company: text(form, "company"),
+    source_kind: text(form, "sourceKind"),
+    source_url: text(form, "sourceUrl"),
     notes: text(form, "notes"),
-    status: "new",
+    stage: "prospect",
   });
   if (error) throw error;
   revalidatePath("/execution");
 }
 
-export async function updateLead(form: FormData) {
+export async function updateContact(form: FormData) {
   const supabase = await requireAdmin();
-  const leadId = String(form.get("leadId") || "");
-  const status = String(form.get("status") || "new");
-  if (!leadId || !STAGES.has(status)) throw new Error("Invalid lead update");
+  const contactId = String(form.get("contactId") || "");
+  const stage = String(form.get("stage") || "prospect");
+  if (!contactId || !STAGES.has(stage)) throw new Error("Invalid contact update");
 
-  const amountRaw = String(form.get("paidAmount") || "").trim();
-  let paidAmount: number | null = amountRaw ? Number(amountRaw) : null;
-  if (paidAmount != null && (!Number.isFinite(paidAmount) || paidAmount < 0)) throw new Error("Invalid amount");
+  const amountRaw = String(form.get("amountPaid") || "").trim();
+  let amountPaid: number | null = amountRaw ? Number(amountRaw) : null;
+  if (amountPaid != null && (!Number.isFinite(amountPaid) || amountPaid < 0)) throw new Error("Invalid amount");
 
-  if ((status === "paid" || status === "delivered") && paidAmount == null) {
-    const { data: lead, error: leadError } = await supabase
-      .from("validation_leads")
+  if ((stage === "paid" || stage === "delivered") && amountPaid == null) {
+    const { data: contact, error: contactError } = await supabase
+      .from("validation_contacts")
       .select("experiment_id,experiments!inner(offer_price)")
-      .eq("id", leadId)
+      .eq("id", contactId)
       .single();
-    if (leadError) throw leadError;
-    const experiment = Array.isArray((lead as any).experiments) ? (lead as any).experiments[0] : (lead as any).experiments;
-    paidAmount = experiment?.offer_price == null ? null : Number(experiment.offer_price);
+    if (contactError) throw contactError;
+    const experiment = Array.isArray((contact as any).experiments) ? (contact as any).experiments[0] : (contact as any).experiments;
+    amountPaid = experiment?.offer_price == null ? 0 : Number(experiment.offer_price);
   }
 
-  const { error } = await supabase.from("validation_leads").update({
-    status,
-    paid_amount: paidAmount,
-    paid_currency: text(form, "currency")?.slice(0, 3).toUpperCase() || null,
+  const { error } = await supabase.from("validation_contacts").update({
+    stage,
+    amount_paid: amountPaid ?? 0,
+    currency: text(form, "currency")?.slice(0, 3).toUpperCase() || null,
     notes: text(form, "notes"),
-  }).eq("id", leadId);
+  }).eq("id", contactId);
   if (error) throw error;
   revalidatePath("/execution");
   revalidatePath("/");
@@ -73,7 +73,7 @@ export async function recalculateExperiment(form: FormData) {
   const supabase = await requireAdmin();
   const experimentId = String(form.get("experimentId") || "");
   if (!experimentId) throw new Error("Missing experimentId");
-  const { error } = await supabase.rpc("radar_refresh_experiment_execution", { p_experiment_id: experimentId });
+  const { error } = await supabase.rpc("refresh_experiment_execution", { p_experiment_id: experimentId });
   if (error) throw error;
   revalidatePath("/execution");
   revalidatePath("/");
