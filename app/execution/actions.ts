@@ -5,6 +5,7 @@ import { isAdminSession } from "@/lib/auth/admin";
 import { getAdminClient } from "@/lib/supabase/admin";
 
 const STAGES = new Set(["prospect","contacted","replied","qualified","paid","delivered","lost"]);
+const DISCOVERY_STATES = new Set(["suggested","approved","dismissed"]);
 
 async function requireAdmin() {
   if (!(await isAdminSession())) throw new Error("Unauthorized");
@@ -37,6 +38,30 @@ export async function addContact(form: FormData) {
   revalidatePath("/execution");
 }
 
+export async function discoverProspects() {
+  const supabase = await requireAdmin();
+  const { error } = await supabase.rpc("discover_validation_prospects", {
+    p_limit_per_experiment: 20,
+    p_min_score: 60,
+  });
+  if (error) throw error;
+  revalidatePath("/execution");
+}
+
+export async function setDiscoveryState(form: FormData) {
+  const supabase = await requireAdmin();
+  const contactId = String(form.get("contactId") || "");
+  const discoveryState = String(form.get("discoveryState") || "");
+  if (!contactId || !DISCOVERY_STATES.has(discoveryState)) throw new Error("Invalid discovery state");
+
+  const { error } = await supabase
+    .from("validation_contacts")
+    .update({ discovery_state: discoveryState })
+    .eq("id", contactId);
+  if (error) throw error;
+  revalidatePath("/execution");
+}
+
 export async function updateContact(form: FormData) {
   const supabase = await requireAdmin();
   const contactId = String(form.get("contactId") || "");
@@ -58,12 +83,15 @@ export async function updateContact(form: FormData) {
     amountPaid = experiment?.offer_price == null ? 0 : Number(experiment.offer_price);
   }
 
-  const { error } = await supabase.from("validation_contacts").update({
+  const payload: Record<string, unknown> = {
     stage,
     amount_paid: amountPaid ?? 0,
     currency: text(form, "currency")?.slice(0, 3).toUpperCase() || null,
     notes: text(form, "notes"),
-  }).eq("id", contactId);
+  };
+  if (stage !== "prospect") payload.discovery_state = "approved";
+
+  const { error } = await supabase.from("validation_contacts").update(payload).eq("id", contactId);
   if (error) throw error;
   revalidatePath("/execution");
   revalidatePath("/");
