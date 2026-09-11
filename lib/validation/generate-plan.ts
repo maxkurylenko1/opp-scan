@@ -13,6 +13,9 @@ type ValidationPlan = {
   success_threshold: string;
   failure_threshold: string;
   stop_condition: string;
+  success_paid_target: number;
+  success_delivered_target: number;
+  failure_max_paid: number;
   max_days: number;
   channel: string;
   offer: string;
@@ -46,7 +49,7 @@ async function callPlanner(opportunity: any, competitors: any[]) {
       }).join("\n")
     : "- No verified competitors/prices yet";
 
-  const prompt = `Create ONE concrete paid validation experiment for this product opportunity.\n\nOpportunity: ${opportunity.title}\nThesis: ${opportunity.thesis}\nPain: ${opportunity.pain_summary || "unknown"}\nWhy now: ${opportunity.why_now || "unknown"}\nPricing hypothesis: ${opportunity.pricing_hypothesis || "none"}\nAcquisition channel: ${opportunity.acquisition_channel || "unknown"}\nBiggest risk: ${opportunity.biggest_risk || "unknown"}\nOpportunity score: ${opportunity.opportunity_score}/100\nConfidence: ${opportunity.confidence_score}/100\n\nVerified competitors/pricing:\n${competitorSummary}\n\nRules:\n- Optimize for learning willingness-to-pay, not compliments or survey opinions.\n- Prefer a paid concierge/manual pilot before building software.\n- The experiment must be runnable by one technical founder in <=14 days and usually <=7 days.\n- Use a realistic offer price grounded in the pricing evidence. If there is not enough basis for a price, use null rather than inventing precision.\n- target_sample_size means number of qualified prospects contacted or offered the pilot, not anonymous traffic.\n- success_threshold must be observable and binary enough to make a decision.\n- failure_threshold must clearly say when NOT to build.\n- outreach_message must be concise, human, and ready to send; no hype, no fake claims, no pretending the product already exists.\n- followup_message should be one short follow-up after no reply.\n- stop_condition protects time/money from endless validation.\n- Do not recommend building an MVP before attempting the paid offer.`;
+  const prompt = `Create ONE concrete paid validation experiment for this product opportunity.\n\nOpportunity: ${opportunity.title}\nThesis: ${opportunity.thesis}\nPain: ${opportunity.pain_summary || "unknown"}\nWhy now: ${opportunity.why_now || "unknown"}\nPricing hypothesis: ${opportunity.pricing_hypothesis || "none"}\nAcquisition channel: ${opportunity.acquisition_channel || "unknown"}\nBiggest risk: ${opportunity.biggest_risk || "unknown"}\nOpportunity score: ${opportunity.opportunity_score}/100\nConfidence: ${opportunity.confidence_score}/100\n\nVerified competitors/pricing:\n${competitorSummary}\n\nRules:\n- Optimize for learning willingness-to-pay, not compliments or survey opinions.\n- Prefer a paid concierge/manual pilot before building software.\n- The experiment must be runnable by one technical founder in <=14 days and usually <=7 days.\n- Use a realistic offer price grounded in the pricing evidence. If there is not enough basis for a price, use null rather than inventing precision.\n- target_sample_size means number of qualified prospects contacted or offered the pilot, not anonymous traffic.\n- success_threshold must be observable and binary enough to make a decision.\n- failure_threshold must clearly say when NOT to build.\n- success_paid_target is the minimum number of paid customers needed to pass.\n- success_delivered_target is the minimum number of successfully delivered paid pilots needed to pass.\n- failure_max_paid is the maximum paid customers allowed after the full target_sample_size is contacted for an automatic fail.\n- outreach_message must be concise, human, and ready to send; no hype, no fake claims, no pretending the product already exists.\n- followup_message should be one short follow-up after no reply.\n- stop_condition protects time/money from endless validation.\n- Do not recommend building an MVP before attempting the paid offer.`;
 
   const schema = {
     type: "object",
@@ -60,6 +63,9 @@ async function callPlanner(opportunity: any, competitors: any[]) {
       success_threshold: { type: "string" },
       failure_threshold: { type: "string" },
       stop_condition: { type: "string" },
+      success_paid_target: { type: "integer", minimum: 1, maximum: 10 },
+      success_delivered_target: { type: "integer", minimum: 0, maximum: 10 },
+      failure_max_paid: { type: "integer", minimum: 0, maximum: 9 },
       max_days: { type: "integer", minimum: 1, maximum: 14 },
       channel: { type: "string" },
       offer: { type: "string" },
@@ -71,32 +77,21 @@ async function callPlanner(opportunity: any, competitors: any[]) {
     },
     required: [
       "hypothesis","method","audience","target_sample_size","success_metric","success_threshold",
-      "failure_threshold","stop_condition","max_days","channel","offer","offer_price","offer_currency",
-      "outreach_message","followup_message","notes"
+      "failure_threshold","stop_condition","success_paid_target","success_delivered_target","failure_max_paid",
+      "max_days","channel","offer","offer_price","offer_currency","outreach_message","followup_message","notes"
     ],
   };
 
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.openAiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${config.openAiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: MODEL,
       store: false,
       reasoning: { effort: "low" },
       input: prompt,
-      max_output_tokens: 1800,
-      text: {
-        verbosity: "low",
-        format: {
-          type: "json_schema",
-          name: "paid_validation_plan",
-          strict: true,
-          schema,
-        },
-      },
+      max_output_tokens: 1900,
+      text: { verbosity: "low", format: { type: "json_schema", name: "paid_validation_plan", strict: true, schema } },
     }),
   });
 
@@ -124,11 +119,12 @@ export async function generateValidationPlans(limit = 3, force = false) {
   for (const opportunity of opportunities || []) {
     const { data: existing, error: existingError } = await supabase
       .from("experiments")
-      .select("id,verdict")
+      .select("id,verdict,contacted_count")
       .eq("opportunity_id", opportunity.id)
       .eq("validation_version", VALIDATION_VERSION)
       .maybeSingle();
     if (existingError) throw existingError;
+    if (existing?.contacted_count > 0) continue;
     if (force || !existing) selected.push(opportunity);
     if (selected.length >= Math.max(1, Math.min(limit, 5))) break;
   }
@@ -157,6 +153,9 @@ export async function generateValidationPlans(limit = 3, force = false) {
       success_threshold: plan.success_threshold.slice(0, 1000),
       failure_threshold: plan.failure_threshold.slice(0, 1000),
       stop_condition: plan.stop_condition.slice(0, 1000),
+      success_paid_target: plan.success_paid_target,
+      success_delivered_target: plan.success_delivered_target,
+      failure_max_paid: Math.min(plan.failure_max_paid, Math.max(0, plan.success_paid_target - 1)),
       max_days: plan.max_days,
       channel: plan.channel.slice(0, 500),
       offer: plan.offer.slice(0, 3000),
@@ -184,15 +183,7 @@ export async function generateValidationPlans(limit = 3, force = false) {
     }).eq("id", opportunity.id);
     if (opportunityError) throw opportunityError;
 
-    generated.push({
-      opportunityId: opportunity.id,
-      experimentId: experiment.id,
-      title: opportunity.title,
-      price: plan.offer_price,
-      currency,
-      sampleSize: plan.target_sample_size,
-      maxDays: plan.max_days,
-    });
+    generated.push({ opportunityId: opportunity.id, experimentId: experiment.id, title: opportunity.title, price: plan.offer_price, currency, sampleSize: plan.target_sample_size, maxDays: plan.max_days });
   }
 
   return { model: MODEL, validationVersion: VALIDATION_VERSION, generated: generated.length, experiments: generated };
