@@ -24,6 +24,7 @@ type SignalRow = {
   pain_score: number;
   purchase_intent_score: number;
   evidence_quality_score: number;
+  money_signal_type: string | null;
   embedding_model: string | null;
 };
 
@@ -35,9 +36,7 @@ type MatchRow = {
   similarity: number;
 };
 
-type ReclusterOptions = {
-  pendingOnly?: boolean;
-};
+type ReclusterOptions = { pendingOnly?: boolean };
 
 function embeddingText(signal: SignalRow) {
   return [
@@ -47,6 +46,7 @@ function embeddingText(signal: SignalRow) {
     signal.persona && `Persona: ${signal.persona}`,
     signal.industry && `Industry: ${signal.industry}`,
     signal.category && `Category: ${signal.category}`,
+    signal.money_signal_type && signal.money_signal_type !== "none" && `Money signal: ${signal.money_signal_type}`,
   ].filter(Boolean).join("\n");
 }
 
@@ -77,6 +77,7 @@ function isNoise(signal: SignalRow) {
   if (p.startsWith("arxiv summary")) return true;
   if (/^top\s+\d+\s+.*\b(companies|agencies|tools|apps)\b/.test(p)) return true;
   if (/what\s+.+\s+teach(es)?\s+us\s+about/.test(p)) return true;
+  if (signal.money_signal_type && signal.money_signal_type !== "none") return false;
   if (signal.evidence_quality_score < 6) return true;
   if (signal.pain_score < 5 && signal.purchase_intent_score < 5) return true;
   return false;
@@ -86,10 +87,7 @@ async function embed(inputs: string[]) {
   if (!config.openAiKey) throw new Error("OPENAI_API_KEY is not configured");
   const response = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.openAiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${config.openAiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model: MODEL, input: inputs, dimensions: DIMENSIONS }),
   });
   if (!response.ok) throw new Error(`OpenAI embeddings failed: ${response.status} ${await response.text()}`);
@@ -115,7 +113,7 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
   const [{ data: signals, error }, { data: links, error: linksError }] = await Promise.all([
     supabase
       .from("signals")
-      .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score,embedding_model")
+      .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score,money_signal_type,embedding_model")
       .eq("is_actionable", true)
       .order("published_at", { ascending: false })
       .limit(500),
@@ -150,11 +148,9 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
   for (let start = 0; start < rows.length; start += 32) {
     const batch = rows.slice(start, start + 32);
     const vectors = await embed(batch.map(embeddingText));
-
     for (let i = 0; i < batch.length; i++) {
       const signal = batch[i];
-      const vector = vectors[i];
-      const vectorText = vectorLiteral(vector);
+      const vectorText = vectorLiteral(vectors[i]);
       const updatedAt = new Date().toISOString();
 
       const { error: updateSignalError } = await supabase
@@ -207,11 +203,10 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
         .eq("assignment_method", ASSIGNMENT);
       if (deleteError) throw deleteError;
 
-      const similarity = match ? Number(match.similarity) : 1;
       const { error: linkError } = await supabase.from("cluster_signals").insert({
         cluster_id: clusterId,
         signal_id: signal.id,
-        similarity,
+        similarity: match ? Number(match.similarity) : 1,
         assignment_method: ASSIGNMENT,
       });
       if (linkError) throw linkError;
