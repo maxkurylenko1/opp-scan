@@ -138,7 +138,6 @@ export async function generateValidationPlans(limit = 3, force = false) {
       hypothesis: plan.hypothesis.slice(0, 2000), method: plan.method.slice(0, 4000), audience: plan.audience.slice(0, 2000),
       target_sample_size: plan.target_sample_size, success_metric: plan.success_metric.slice(0, 1000), success_threshold: plan.success_threshold.slice(0, 1000),
       failure_threshold: plan.failure_threshold.slice(0, 1000), stop_condition: plan.stop_condition.slice(0, 1000),
-      success_paid_target: plan.success_paid_target, success_delivered_target: plan.success_delivered_target, failure_max_paid: failureMaxPaid,
       success_paid_count: plan.success_paid_target, success_delivered_count: plan.success_delivered_target,
       failure_contact_limit: plan.target_sample_size, failure_paid_below_count: failureMaxPaid + 1,
       execution_state: "not_started",
