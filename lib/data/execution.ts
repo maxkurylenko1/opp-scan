@@ -12,27 +12,26 @@ export async function getExecutionBoardData() {
   if (error) throw error;
 
   const ids = (experiments || []).map((x: any) => x.id);
-  const { data: leads, error: leadsError } = ids.length
-    ? await supabase.from("validation_leads").select("*").in("experiment_id", ids).order("created_at", { ascending: false })
+  const { data: contacts, error: contactsError } = ids.length
+    ? await supabase.from("validation_contacts").select("*").in("experiment_id", ids).order("created_at", { ascending: false })
     : { data: [], error: null } as any;
-  if (leadsError) throw leadsError;
+  if (contactsError) throw contactsError;
 
   return {
     experiments: (experiments || []).map((experiment: any) => {
-      const rows = (leads || []).filter((lead: any) => lead.experiment_id === experiment.id);
-      const opportunity = Array.isArray(experiment.opportunities) ? experiment.opportunities[0] : experiment.opportunities;
-      return {
-        ...experiment,
-        opportunity,
-        leads: rows,
-        executionState: experiment.verdict === "pass"
-          ? "validated"
-          : experiment.verdict === "fail"
-            ? "failed"
-            : Number(experiment.contacted_count || 0) > 0
-              ? "running"
-              : "not-started",
+      const rows = (contacts || []).filter((contact: any) => contact.experiment_id === experiment.id);
+      const metrics = {
+        prospects: rows.length,
+        contacted: rows.filter((c: any) => c.contacted_at).length,
+        replied: rows.filter((c: any) => c.replied_at).length,
+        qualified: rows.filter((c: any) => c.qualified_at).length,
+        paid: rows.filter((c: any) => c.paid_at || Number(c.amount_paid) > 0).length,
+        delivered: rows.filter((c: any) => c.delivered_at).length,
+        lost: rows.filter((c: any) => c.lost_at || c.stage === "lost").length,
+        revenue: rows.reduce((sum: number, c: any) => sum + Number(c.amount_paid || 0), 0),
       };
+      const opportunity = Array.isArray(experiment.opportunities) ? experiment.opportunities[0] : experiment.opportunities;
+      return { ...experiment, opportunity, contacts: rows, metrics };
     }),
   };
 }
