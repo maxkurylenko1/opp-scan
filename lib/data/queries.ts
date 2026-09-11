@@ -36,12 +36,12 @@ export async function getDashboardData() {
     supabase.from("opportunity_themes").select("*", { count: "exact", head: true }).eq("theme_version", "theme-v1.0"),
     supabase.from("problem_clusters").select("*", { count: "exact", head: true }).eq("clustering_version", "semantic-v1.1"),
     supabase.from("problem_clusters").select("*", { count: "exact", head: true }).eq("clustering_version", "heuristic-v1"),
-    supabase.from("opportunities").select("*", { count: "exact", head: true }).eq("score_version", "theme-v1.0").not("theme_id", "is", null),
+    supabase.from("opportunities").select("*", { count: "exact", head: true }).like("score_version", "theme-v1.%").not("theme_id", "is", null),
   ]);
 
   const hasRankedThemes = (rankedThemeCount || 0) > 0;
   const hasSemantic = (semanticClusterCount || 0) > 0;
-  const clusterMode = hasRankedThemes ? "theme-v1.0 + semantic-v1.1" : hasSemantic ? "semantic-v1.1" : "heuristic-v1";
+  const clusterMode = hasRankedThemes ? "theme-v1 + semantic-v1.1" : hasSemantic ? "semantic-v1.1" : "heuristic-v1";
 
   const opportunities: OpportunityView[] = [];
 
@@ -49,7 +49,7 @@ export async function getDashboardData() {
     const { data: themes } = await supabase
       .from("opportunities")
       .select("*")
-      .eq("score_version", "theme-v1.0")
+      .like("score_version", "theme-v1.%")
       .not("theme_id", "is", null)
       .in("status", ["research", "validate", "build", "winner"])
       .order("opportunity_score", { ascending: false })
