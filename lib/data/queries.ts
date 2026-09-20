@@ -1,6 +1,6 @@
 import { demoOpportunities } from "./demo";
 import { getAdminClient } from "@/lib/supabase/admin";
-import type { OpportunityView } from "@/lib/types";
+import type { OpportunityBriefView, OpportunityView } from "@/lib/types";
 
 function toOpportunityView(x: any, origin: "theme" | "exact" = "exact"): OpportunityView {
   return {
@@ -97,7 +97,7 @@ export async function getOpportunity(id: string) {
   ]);
   if (briefError) throw briefError;
 
-  const buildBrief = brief ? {
+  const buildBrief: OpportunityBriefView | null = brief ? {
     readiness: brief.readiness,
     productType: brief.product_type,
     buildSummary: brief.build_summary,
@@ -117,7 +117,7 @@ export async function getOpportunity(id: string) {
     firstMilestone: brief.first_milestone,
     successDefinition: brief.success_definition,
     generatedAt: brief.generated_at,
-  } as const : null;
+  } : null;
 
   let validationPlan = null;
   if (experiment) {

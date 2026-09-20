@@ -1,4 +1,4 @@
-name: One-off build check
+name: One-off build check # typed brief retry
 on:
   push:
     branches: [main]
