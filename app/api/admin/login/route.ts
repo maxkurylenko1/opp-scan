@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     return NextResponse.redirect(new URL("/admin?error=1", request.url), 303);
   }
 
-  const response = NextResponse.redirect(new URL("/execution", request.url), 303);
+  const response = NextResponse.redirect(new URL("/admin", request.url), 303);
   response.cookies.set(ADMIN_COOKIE, getAdminCookieValue(), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

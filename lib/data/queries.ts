@@ -87,12 +87,37 @@ export async function getOpportunity(id: string) {
   if (!data) return null;
 
   const base = toOpportunityView(data, data.theme_id ? "theme" : "exact");
-  const { data: experiment } = await supabase
-    .from("experiments")
-    .select("id,hypothesis,method,audience,target_sample_size,success_metric,success_threshold,failure_threshold,stop_condition,success_paid_count,success_delivered_count,failure_contact_limit,failure_paid_below_count,max_days,channel,offer,offer_price,offer_currency,outreach_message,followup_message,verdict,notes,execution_state")
-    .eq("opportunity_id", data.id)
-    .eq("validation_version", "validation-v1.5")
-    .maybeSingle();
+  const [{ data: experiment }, { data: brief, error: briefError }] = await Promise.all([
+    supabase.from("experiments")
+      .select("id,hypothesis,method,audience,target_sample_size,success_metric,success_threshold,failure_threshold,stop_condition,success_paid_count,success_delivered_count,failure_contact_limit,failure_paid_below_count,max_days,channel,offer,offer_price,offer_currency,outreach_message,followup_message,verdict,notes,execution_state")
+      .eq("opportunity_id", data.id)
+      .eq("validation_version", "validation-v1.5")
+      .maybeSingle(),
+    supabase.from("opportunity_briefs").select("*").eq("opportunity_id", data.id).maybeSingle(),
+  ]);
+  if (briefError) throw briefError;
+
+  const buildBrief = brief ? {
+    readiness: brief.readiness,
+    productType: brief.product_type,
+    buildSummary: brief.build_summary,
+    primaryUser: brief.primary_user,
+    coreJob: brief.core_job,
+    whyItCanWork: brief.why_it_can_work,
+    evidenceBasis: brief.evidence_basis,
+    mvpFeatures: Array.isArray(brief.mvp_features) ? brief.mvp_features : [],
+    userFlow: Array.isArray(brief.user_flow) ? brief.user_flow : [],
+    nonGoals: Array.isArray(brief.non_goals) ? brief.non_goals : [],
+    technicalApproach: brief.technical_approach,
+    risks: Array.isArray(brief.risks) ? brief.risks : [],
+    unknowns: Array.isArray(brief.unknowns) ? brief.unknowns : [],
+    buildDaysMin: brief.build_days_min,
+    buildDaysMax: brief.build_days_max,
+    validationDays: brief.validation_days,
+    firstMilestone: brief.first_milestone,
+    successDefinition: brief.success_definition,
+    generatedAt: brief.generated_at,
+  } as const : null;
 
   let validationPlan = null;
   if (experiment) {
@@ -102,14 +127,6 @@ export async function getOpportunity(id: string) {
       .eq("experiment_id", experiment.id);
     if (contactsError) throw contactsError;
     const rows = (contacts || []).filter((c: any) => c.discovery_state !== "dismissed");
-    const contactedCount = rows.filter((c: any) => c.contacted_at).length;
-    const repliedCount = rows.filter((c: any) => c.replied_at).length;
-    const qualifiedCount = rows.filter((c: any) => c.qualified_at).length;
-    const paidCount = rows.filter((c: any) => c.paid_at || Number(c.amount_paid) > 0).length;
-    const deliveredCount = rows.filter((c: any) => c.delivered_at).length;
-    const lostCount = rows.filter((c: any) => c.lost_at || c.stage === "lost").length;
-    const revenueAmount = rows.reduce((sum: number, c: any) => sum + Number(c.amount_paid || 0), 0);
-
     validationPlan = {
       id: experiment.id,
       hypothesis: experiment.hypothesis,
@@ -132,17 +149,17 @@ export async function getOpportunity(id: string) {
       followupMessage: experiment.followup_message,
       verdict: experiment.verdict,
       notes: experiment.notes,
-      contactedCount,
-      repliedCount,
-      qualifiedCount,
-      paidCount,
-      deliveredCount,
-      lostCount,
-      revenueAmount,
+      contactedCount: rows.filter((c: any) => c.contacted_at).length,
+      repliedCount: rows.filter((c: any) => c.replied_at).length,
+      qualifiedCount: rows.filter((c: any) => c.qualified_at).length,
+      paidCount: rows.filter((c: any) => c.paid_at || Number(c.amount_paid) > 0).length,
+      deliveredCount: rows.filter((c: any) => c.delivered_at).length,
+      lostCount: rows.filter((c: any) => c.lost_at || c.stage === "lost").length,
+      revenueAmount: rows.reduce((sum: number, c: any) => sum + Number(c.amount_paid || 0), 0),
     };
   }
 
-  if (!data.theme_id) return { ...base, validationPlan } satisfies OpportunityView;
+  if (!data.theme_id) return { ...base, validationPlan, buildBrief } satisfies OpportunityView;
 
   const [{ data: theme }, { data: competitors }, { data: evidence }] = await Promise.all([
     supabase.from("opportunity_themes").select("market_summary,market_researched_at").eq("id", data.theme_id).maybeSingle(),
@@ -172,5 +189,6 @@ export async function getOpportunity(id: string) {
       evidenceWeight: Number(row.evidence_weight),
     })),
     validationPlan,
+    buildBrief,
   } satisfies OpportunityView;
 }

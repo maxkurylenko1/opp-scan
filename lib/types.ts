@@ -17,6 +17,34 @@ export type MarketEvidenceView = {
   evidenceWeight: number;
 };
 
+export type OpportunityBriefRisk = {
+  risk: string;
+  severity: "low" | "medium" | "high";
+  mitigation: string;
+};
+
+export type OpportunityBriefView = {
+  readiness: "research_only" | "validate_first" | "build_candidate";
+  productType?: string | null;
+  buildSummary: string;
+  primaryUser?: string | null;
+  coreJob?: string | null;
+  whyItCanWork?: string | null;
+  evidenceBasis?: string | null;
+  mvpFeatures: string[];
+  userFlow: string[];
+  nonGoals: string[];
+  technicalApproach?: string | null;
+  risks: OpportunityBriefRisk[];
+  unknowns: string[];
+  buildDaysMin?: number | null;
+  buildDaysMax?: number | null;
+  validationDays?: number | null;
+  firstMilestone?: string | null;
+  successDefinition?: string | null;
+  generatedAt?: string | null;
+};
+
 export type ValidationPlanView = {
   id: string;
   hypothesis: string;
@@ -69,4 +97,5 @@ export type OpportunityView = {
   competitors?: CompetitorView[];
   marketEvidence?: MarketEvidenceView[];
   validationPlan?: ValidationPlanView | null;
+  buildBrief?: OpportunityBriefView | null;
 };
