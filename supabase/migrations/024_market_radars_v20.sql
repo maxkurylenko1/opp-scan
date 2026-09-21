@@ -223,3 +223,31 @@ end
 $$;
 
 revoke all on function public.radar_snapshot_scan(uuid,integer) from public,anon,authenticated;
+
+
+create or replace function public.radar_finalize_scheduled_scan(p_date date default current_date)
+returns uuid language plpgsql security definer set search_path=public as $$
+declare
+  v_scan_id uuid; v_start timestamptz:=(p_date::timestamp at time zone 'UTC'); v_end timestamptz:=((p_date+1)::timestamp at time zone 'UTC');
+  v_runs integer:=0; v_failures integer:=0; v_inserted integer:=0; v_started timestamptz; v_finished timestamptz;
+begin
+  select id into v_scan_id from public.radar_scans where trigger_type='scheduled' and scan_date=p_date limit 1;
+  if v_scan_id is null then
+    insert into public.radar_scans(trigger_type,status,scan_date,started_at,metadata)
+    values('scheduled','running',p_date,v_start,jsonb_build_object('grouped_from_collection_runs',true)) returning id into v_scan_id;
+  end if;
+  update public.collection_runs set scan_id=v_scan_id where scan_id is null and started_at>=v_start and started_at<v_end;
+  select count(*)::integer,count(*) filter(where status='failed')::integer,coalesce(sum(records_inserted),0)::integer,min(started_at),max(coalesce(finished_at,started_at))
+    into v_runs,v_failures,v_inserted,v_started,v_finished from public.collection_runs where scan_id=v_scan_id;
+  update public.radar_scans set
+    status=case when v_runs=0 then 'failed' when v_failures>0 then 'partial' else 'success' end,
+    started_at=coalesce(v_started,started_at),finished_at=coalesce(v_finished,now()),new_raw_items=v_inserted,
+    new_signals=(select count(*)::integer from public.signals where created_at>=v_start and created_at<v_end),
+    new_actionable=(select count(*)::integer from public.signals where created_at>=v_start and created_at<v_end and is_actionable),
+    source_runs=v_runs,source_failures=v_failures
+  where id=v_scan_id;
+  if p_date=current_date then perform public.radar_snapshot_scan(v_scan_id,5); end if;
+  return v_scan_id;
+end $$;
+
+revoke all on function public.radar_finalize_scheduled_scan(date) from public,anon,authenticated;
