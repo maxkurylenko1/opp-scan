@@ -83,7 +83,7 @@ export async function runManualScan() {
     const briefs = await generateOpportunityBriefs(10, false);
     metadata.briefs = safe(briefs);
 
-    const { data: snapshotCount, error: snapshotError } = await supabase.rpc("radar_snapshot_scan", { p_scan_id: scanId, p_limit: 10 });
+    const { data: snapshotCount, error: snapshotError } = await supabase.rpc("radar_snapshot_scan", { p_scan_id: scanId, p_limit: 5 });
     if (snapshotError) throw snapshotError;
     metadata.snapshotCount = snapshotCount;
 

@@ -69,8 +69,19 @@ export default async function ScanDetailPage({ params }: { params: Promise<{ id:
 
       <section style={{ marginTop: 30 }}>
         <div className="section-heading"><div><p className="eyebrow">SNAPSHOT</p><h2>Opportunities found in this scan</h2></div></div>
-        <div style={{ display: "grid", gap: 18 }}>
-          {opportunities.map((item: any) => {
+        <div style={{ display: "grid", gap: 28 }}>
+          {(["us", "eu"] as const).map((market) => {
+            const marketItems = opportunities.filter((item: any) => (item.market || "us") === market);
+            return (
+              <div key={market}>
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">{market === "us" ? "🇺🇸 US RADAR" : "🇪🇺 EUROPE RADAR"}</p>
+                    <h3>Top opportunities</h3>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gap: 18 }}>
+                  {marketItems.map((item: any) => {
             const brief = item.brief || null;
             const risks = Array.isArray(brief?.risks) ? brief.risks : [];
             return (
@@ -95,6 +106,11 @@ export default async function ScanDetailPage({ params }: { params: Promise<{ id:
                   <h3>Biggest risk</h3><p className="muted">{item.biggest_risk || "—"}</p>
                 </>}
                 {item.opportunity_id && <Link href={`/opportunities/${item.opportunity_id}`}>Open full opportunity brief ↗</Link>}
+              </div>
+            );
+                  })}
+                  {!marketItems.length && <div className="empty">No {market === "us" ? "US" : "Europe"} snapshot is available for this scan.</div>}
+                </div>
               </div>
             );
           })}
