@@ -24,59 +24,100 @@ function toOpportunityView(x: any, origin: "theme" | "exact" = "exact"): Opportu
 
 export async function getDashboardData() {
   const supabase = getAdminClient();
-  if (!supabase) return { mode: "demo", signalCount: 53, clusterCount: 53, clusterMode: "heuristic-v1", opportunities: demoOpportunities };
+  if (!supabase) return {
+    mode: "demo",
+    signalCount: 53,
+    clusterCount: 53,
+    clusterMode: "heuristic-v1",
+    latestScan: null,
+    markets: {
+      us: demoOpportunities.slice(0, 5),
+      eu: demoOpportunities.slice(0, 5),
+    },
+  };
 
   const [
     { count: signalCount },
     { count: themeCount },
     { count: semanticClusterCount },
     { count: heuristicClusterCount },
-    { count: rankedThemeCount },
+    { data: latestScan, error: scanError },
   ] = await Promise.all([
     supabase.from("signals").select("*", { count: "exact", head: true }),
     supabase.from("opportunity_themes").select("*", { count: "exact", head: true }).eq("theme_version", "theme-v1.0"),
     supabase.from("problem_clusters").select("*", { count: "exact", head: true }).eq("clustering_version", "semantic-v1.1"),
     supabase.from("problem_clusters").select("*", { count: "exact", head: true }).eq("clustering_version", "heuristic-v1"),
-    supabase.from("opportunities").select("*", { count: "exact", head: true }).like("score_version", "theme-v1.%").not("theme_id", "is", null),
+    supabase.from("radar_scans")
+      .select("id,status,started_at,finished_at,opportunities_snapshot_count,metadata")
+      .in("status", ["success", "partial"])
+      .gt("opportunities_snapshot_count", 0)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
+  if (scanError) throw scanError;
 
-  const hasRankedThemes = (rankedThemeCount || 0) > 0;
   const hasSemantic = (semanticClusterCount || 0) > 0;
-  const clusterMode = hasRankedThemes ? "theme-v1 + semantic-v1.1" : hasSemantic ? "semantic-v1.1" : "heuristic-v1";
+  const clusterMode = hasSemantic ? "semantic-v1.1" : "heuristic-v1";
 
-  const opportunities: OpportunityView[] = [];
+  const markets: Record<"us" | "eu", OpportunityView[]> = { us: [], eu: [] };
 
-  if (hasRankedThemes) {
-    const { data: themes } = await supabase
+  if (latestScan?.id) {
+    const { data: snapshot, error: snapshotError } = await supabase
+      .from("radar_scan_opportunities")
+      .select("opportunity_id,market,rank,title,origin,status,opportunity_score,confidence_score,thesis,target_customer,why_now,mvp_scope,biggest_risk,pricing_hypothesis,time_to_validation_days")
+      .eq("scan_id", latestScan.id)
+      .order("market", { ascending: true })
+      .order("rank", { ascending: true });
+    if (snapshotError) throw snapshotError;
+
+    for (const row of snapshot || []) {
+      const market = row.market === "eu" ? "eu" : "us";
+      markets[market].push({
+        id: row.opportunity_id || `${latestScan.id}:${market}:${row.rank}`,
+        title: row.title,
+        thesis: row.thesis || "",
+        status: row.status,
+        origin: row.origin === "theme" ? "theme" : "exact",
+        opportunityScore: Number(row.opportunity_score),
+        confidenceScore: Number(row.confidence_score),
+        targetCustomer: row.target_customer,
+        timeToValidationDays: row.time_to_validation_days,
+        whyNow: row.why_now,
+        biggestRisk: row.biggest_risk,
+        mvpScope: row.mvp_scope,
+        pricingHypothesis: row.pricing_hypothesis,
+      });
+    }
+  }
+
+  // Backward-compatible fallback for deployments before market snapshots exist.
+  if (!markets.us.length && !markets.eu.length) {
+    const { data: fallback } = await supabase
       .from("opportunities")
       .select("*")
-      .like("score_version", "theme-v1.%")
-      .not("theme_id", "is", null)
       .in("status", ["research", "validate", "build", "winner"])
       .order("opportunity_score", { ascending: false })
       .limit(5);
-    opportunities.push(...(themes || []).map((x) => toOpportunityView(x, "theme")));
-  }
-
-  const remaining = Math.max(0, 10 - opportunities.length);
-  if (remaining > 0) {
-    const exactMode = hasSemantic ? "semantic-v1.1" : "heuristic-v1";
-    const { data: exact } = await supabase
-      .from("opportunities")
-      .select("*, problem_clusters!inner(clustering_version)")
-      .eq("problem_clusters.clustering_version", exactMode)
-      .in("status", ["research", "validate", "build", "winner"])
-      .order("opportunity_score", { ascending: false })
-      .limit(remaining);
-    opportunities.push(...(exact || []).map((x) => toOpportunityView(x, "exact")));
+    const items = (fallback || []).map((x) => toOpportunityView(x, x.theme_id ? "theme" : "exact"));
+    markets.us = items;
+    markets.eu = items;
   }
 
   return {
     mode: "live",
     signalCount: signalCount || 0,
-    clusterCount: hasRankedThemes ? (themeCount || 0) : hasSemantic ? (semanticClusterCount || 0) : (heuristicClusterCount || 0),
+    clusterCount: (themeCount || 0) || (hasSemantic ? (semanticClusterCount || 0) : (heuristicClusterCount || 0)),
     clusterMode,
-    opportunities,
+    latestScan: latestScan ? {
+      id: latestScan.id,
+      status: latestScan.status,
+      startedAt: latestScan.started_at,
+      finishedAt: latestScan.finished_at,
+      snapshotCount: latestScan.opportunities_snapshot_count,
+      metadata: latestScan.metadata,
+    } : null,
+    markets,
   };
 }
 
