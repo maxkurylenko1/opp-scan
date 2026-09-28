@@ -32,7 +32,23 @@ An evidence-first radar that collects public problem signals, groups them into r
 
 `Opportunity Score = 20% pain + 20% willingness to pay + 15% reachability + 10% frequency + 10% growth/timing + 10% competitor gap + 10% buildability + 5% recurring revenue - penalties`
 
-Confidence is separate and depends on source independence, money evidence, evidence quality and recency. Do not build from score alone; open the original evidence.
+Confidence is deliberately split into two dimensions:
+
+- **Problem confidence** — is the painful workflow real, repeated, recent, and independently observed?
+- **Product confidence** — is there evidence for this specific product-shaped solution: direct product purchase intent, an actual competitor gap, independent demand evidence, and no overwhelming incumbent/counter-evidence?
+
+The UI still exposes an overall confidence summary, but promotion decisions use the two dimensions separately. Service/freelancer spend proves that a problem costs money; it does **not** by itself prove recurring SaaS demand.
+
+### Evidence maturity gates
+
+- **Scout** — promising early evidence. Keep it visible; do not discard it merely because the sample is small.
+- **Research** — problem evidence is credible enough to justify deeper market/counter-evidence research.
+- **Validate** — requires strong problem evidence **and** product-specific evidence. Only these candidates get automatic paid-validation plans.
+- **Build** — reserved for opportunities that have passed real-world validation.
+
+Market research must actively search for disconfirming evidence, native/incumbent solutions, saturation, explicit product purchase intent, service-spend evidence, timing, and solo-builder constraints. Many comments in one discussion count as one evidence unit, and self-promotional/vendor evidence cannot substitute for independent buyer demand.
+
+Do not build from score alone; open the underlying evidence and counter-evidence.
 
 ## V1 source strategy
 
