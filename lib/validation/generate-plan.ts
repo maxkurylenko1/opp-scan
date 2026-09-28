@@ -84,11 +84,13 @@ export async function generateValidationPlans(limit = 3, force = false) {
 
   const { data: opportunities, error } = await supabase
     .from("opportunities")
-    .select("id,title,thesis,pain_summary,why_now,pricing_hypothesis,acquisition_channel,biggest_risk,opportunity_score,confidence_score,status,theme_id")
+    .select("id,title,thesis,pain_summary,why_now,pricing_hypothesis,acquisition_channel,biggest_risk,opportunity_score,confidence_score,problem_confidence_score,product_confidence_score,decision_tier,status,theme_id")
     .not("theme_id", "is", null)
-    .in("status", ["research", "validate"])
-    .gte("confidence_score", 55)
-    .gte("opportunity_score", 45)
+    .in("status", ["validate", "build"])
+    .eq("decision_tier", "validate")
+    .gte("problem_confidence_score", 65)
+    .gte("product_confidence_score", 50)
+    .gte("opportunity_score", 60)
     .order("opportunity_score", { ascending: false })
     .limit(Math.max(1, Math.min(limit * 3, 20)));
   if (error) throw error;
