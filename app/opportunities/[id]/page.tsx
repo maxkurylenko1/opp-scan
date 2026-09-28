@@ -27,15 +27,17 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
 
   return (
     <div className="page-shell">
-      <p className="eyebrow">OPPORTUNITY · {item.origin || "exact"}</p>
+      <p className="eyebrow">OPPORTUNITY · {item.origin || "exact"}{item.decisionTier ? ` · ${item.decisionTier}` : ""}</p>
       <h1>{item.title}</h1>
       <p className="muted">{item.thesis}</p>
 
       <div className="panel" style={{ marginTop: 24 }}>
-        <div className="score-row">
+        <div className="score-row" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
           <ScoreBar label="Opportunity" value={item.opportunityScore} />
-          <ScoreBar label="Confidence" value={item.confidenceScore} />
+          <ScoreBar label="Problem evidence" value={item.problemConfidenceScore ?? item.confidenceScore} />
+          <ScoreBar label="Product proof" value={item.productConfidenceScore ?? item.confidenceScore} />
         </div>
+        <p className="muted">Overall confidence: {item.confidenceScore.toFixed(0)}/100. Problem evidence answers “is this pain real?”; product proof answers “is this specific product gap and buying behavior supported?”</p>
         <h3>Why now</h3><p className="muted">{item.whyNow || "More evidence required."}</p>
         <h3>Suggested MVP</h3><p className="muted">{item.mvpScope || "Validate the painful workflow before building."}</p>
         <h3>Pricing hypothesis</h3><p className="muted">{item.pricingHypothesis || "Validate willingness to pay before setting price."}</p>
@@ -107,7 +109,19 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
 
       {!plan && item.validationExperiment && <div className="panel" style={{ marginTop: 24 }}><p className="eyebrow">VALIDATION</p><h2>Suggested experiment</h2><p className="muted">{item.validationExperiment}</p></div>}
 
-      {item.marketSummary && <div className="panel" style={{ marginTop: 24 }}><p className="eyebrow">MARKET RESEARCH</p><h2>Market reality</h2><p className="muted">{item.marketSummary}</p>{item.marketResearchedAt && <p className="muted">Researched {new Date(item.marketResearchedAt).toLocaleString("en-GB")}</p>}</div>}
+      {item.marketSummary && <div className="panel" style={{ marginTop: 24 }}>
+        <p className="eyebrow">MARKET RESEARCH</p><h2>Market reality</h2><p className="muted">{item.marketSummary}</p>
+        <div className="stats-grid" style={{ marginTop: 18 }}>
+          <div className="stat-card"><span>Product demand</span><strong>{item.marketProductDemandScore == null ? "—" : item.marketProductDemandScore.toFixed(1)}</strong></div>
+          <div className="stat-card"><span>Competitor gap</span><strong>{item.marketGapScore == null ? "—" : item.marketGapScore.toFixed(1)}</strong></div>
+          <div className="stat-card"><span>Saturation</span><strong>{item.marketSaturationScore == null ? "—" : item.marketSaturationScore.toFixed(1)}</strong></div>
+          <div className="stat-card"><span>Incumbent risk</span><strong>{item.marketIncumbentRiskScore == null ? "—" : item.marketIncumbentRiskScore.toFixed(1)}</strong></div>
+          <div className="stat-card"><span>Direct purchase evidence</span><strong>{item.marketDirectPurchaseEvidenceCount ?? 0}</strong></div>
+          <div className="stat-card"><span>Counter-evidence</span><strong>{item.marketCounterEvidenceCount ?? 0}</strong></div>
+        </div>
+        <p className="muted">Service-spend evidence: {item.marketServiceSpendEvidenceCount ?? 0} · Independent demand pages: {item.marketIndependentDemandSourceCount ?? 0} · Timing: {item.marketTimingScore == null ? "—" : item.marketTimingScore.toFixed(1)}</p>
+        {item.marketResearchedAt && <p className="muted">Researched {new Date(item.marketResearchedAt).toLocaleString("en-GB")}</p>}
+      </div>}
 
       {!!item.competitors?.length && <section style={{ marginTop: 28 }}>
         <div className="section-heading"><div><p className="eyebrow">COMPETITORS</p><h2>Verified alternatives & pricing</h2></div></div>

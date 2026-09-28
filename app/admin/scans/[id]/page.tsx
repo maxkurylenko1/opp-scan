@@ -87,8 +87,12 @@ export default async function ScanDetailPage({ params }: { params: Promise<{ id:
             return (
               <div className="card" key={item.id}>
                 <div className="card-top">
-                  <div><p className="eyebrow">#{item.rank} · {item.origin} · {item.status}</p><h3>{item.title}</h3></div>
-                  <div className="badge-row"><span className="badge">score {Number(item.opportunity_score).toFixed(1)}</span><span className="badge">confidence {Number(item.confidence_score).toFixed(1)}</span></div>
+                  <div><p className="eyebrow">#{item.rank} · {item.origin} · {item.decision_tier || item.status}</p><h3>{item.title}</h3></div>
+                  <div className="badge-row">
+                    <span className="badge">score {Number(item.opportunity_score).toFixed(1)}</span>
+                    <span className="badge">problem {Number(item.problem_confidence_score || 0).toFixed(0)}</span>
+                    <span className="badge">product {Number(item.product_confidence_score || 0).toFixed(0)}</span>
+                  </div>
                 </div>
                 <p className="muted">{item.thesis}</p>
                 {brief ? <>

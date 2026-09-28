@@ -90,7 +90,10 @@ function isNoise(signal: SignalRow) {
   if (p.startsWith("arxiv summary")) return true;
   if (/^top\s+\d+\s+.*\b(companies|agencies|tools|apps)\b/.test(p)) return true;
   if (/what\s+.+\s+teach(es)?\s+us\s+about/.test(p)) return true;
-  if (signal.money_signal_type && signal.money_signal_type !== "none") return false;
+  const hasMoneyLabel = Boolean(signal.money_signal_type && signal.money_signal_type !== "none");
+  // A keyword-derived money label is not enough to bypass the noise gate.
+  // Marketplace posts are direct spend evidence; elsewhere require unusually strong intent/quality.
+  if (hasMoneyLabel && (isMarketplace(signal) || signal.purchase_intent_score >= 6 || signal.evidence_quality_score >= 8)) return false;
   if (signal.evidence_quality_score < 6) return true;
   if (signal.pain_score < 5 && signal.purchase_intent_score < 5) return true;
   return false;
