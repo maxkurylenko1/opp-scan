@@ -241,14 +241,18 @@ async function collectReddit(): Promise<Raw[]> {
       if (!explicitProblemIntent(text) && !directProductIntent(text)) continue;
       if (selfPromoText(text)) continue;
 
+      const pseudonymousAuthor = post.author
+        ? `reddit:${(await sha256(String(post.author))).slice(0, 16)}`
+        : null;
+
       rows.push({
         sourceKey: "reddit",
         sourceKind: "reddit",
         externalId: String(post.name || post.id || post.permalink),
         sourceUrl: post.permalink ? `https://www.reddit.com${post.permalink}` : url,
-        author: post.author || null,
+        author: pseudonymousAuthor,
         title,
-        body,
+        body: body.slice(0, 4000),
         publishedAt: post.created_utc
           ? new Date(post.created_utc * 1000).toISOString()
           : new Date().toISOString(),
