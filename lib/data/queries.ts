@@ -11,6 +11,9 @@ function toOpportunityView(x: any, origin: "theme" | "exact" = "exact"): Opportu
     origin,
     opportunityScore: Number(x.opportunity_score),
     confidenceScore: Number(x.confidence_score),
+    problemConfidenceScore: x.problem_confidence_score == null ? null : Number(x.problem_confidence_score),
+    productConfidenceScore: x.product_confidence_score == null ? null : Number(x.product_confidence_score),
+    decisionTier: x.decision_tier || null,
     targetCustomer: x.target_customer,
     timeToValidationDays: x.time_to_validation_days,
     whyNow: x.why_now,
@@ -65,7 +68,7 @@ export async function getDashboardData() {
   if (latestScan?.id) {
     const { data: snapshot, error: snapshotError } = await supabase
       .from("radar_scan_opportunities")
-      .select("opportunity_id,market,rank,title,origin,status,opportunity_score,confidence_score,thesis,target_customer,why_now,mvp_scope,biggest_risk,pricing_hypothesis,time_to_validation_days")
+      .select("opportunity_id,market,rank,title,origin,status,opportunity_score,confidence_score,problem_confidence_score,product_confidence_score,decision_tier,thesis,target_customer,why_now,mvp_scope,biggest_risk,pricing_hypothesis,time_to_validation_days")
       .eq("scan_id", latestScan.id)
       .order("market", { ascending: true })
       .order("rank", { ascending: true });
@@ -81,6 +84,9 @@ export async function getDashboardData() {
         origin: row.origin === "theme" ? "theme" : "exact",
         opportunityScore: Number(row.opportunity_score),
         confidenceScore: Number(row.confidence_score),
+        problemConfidenceScore: Number(row.problem_confidence_score || 0),
+        productConfidenceScore: Number(row.product_confidence_score || 0),
+        decisionTier: row.decision_tier || null,
         targetCustomer: row.target_customer,
         timeToValidationDays: row.time_to_validation_days,
         whyNow: row.why_now,
@@ -203,8 +209,8 @@ export async function getOpportunity(id: string) {
   if (!data.theme_id) return { ...base, validationPlan, buildBrief } satisfies OpportunityView;
 
   const [{ data: theme }, { data: competitors }, { data: evidence }] = await Promise.all([
-    supabase.from("opportunity_themes").select("market_summary,market_researched_at").eq("id", data.theme_id).maybeSingle(),
-    supabase.from("competitors").select("name,url,price_min,price_max,currency,billing_period,strengths,weaknesses,evidence_url").eq("opportunity_id", data.id).eq("research_version", "web-v1.4").order("price_min", { ascending: true, nullsFirst: false }),
+    supabase.from("opportunity_themes").select("market_summary,market_researched_at,market_gap_score,market_product_demand_score,market_saturation_score,market_incumbent_risk_score,market_timing_score,market_counter_evidence_count,market_direct_purchase_evidence_count,market_service_spend_evidence_count,market_independent_demand_source_count").eq("id", data.theme_id).maybeSingle(),
+    supabase.from("competitors").select("name,url,price_min,price_max,currency,billing_period,strengths,weaknesses,evidence_url").eq("opportunity_id", data.id).order("observed_at", { ascending: false }),
     supabase.from("evidence").select("claim_type,source_url,excerpt,evidence_weight").eq("opportunity_id", data.id).eq("source_kind", "web_research").order("evidence_weight", { ascending: false }).limit(12),
   ]);
 
@@ -212,6 +218,15 @@ export async function getOpportunity(id: string) {
     ...base,
     marketSummary: theme?.market_summary || null,
     marketResearchedAt: theme?.market_researched_at || null,
+    marketGapScore: theme?.market_gap_score == null ? null : Number(theme.market_gap_score),
+    marketProductDemandScore: theme?.market_product_demand_score == null ? null : Number(theme.market_product_demand_score),
+    marketSaturationScore: theme?.market_saturation_score == null ? null : Number(theme.market_saturation_score),
+    marketIncumbentRiskScore: theme?.market_incumbent_risk_score == null ? null : Number(theme.market_incumbent_risk_score),
+    marketTimingScore: theme?.market_timing_score == null ? null : Number(theme.market_timing_score),
+    marketCounterEvidenceCount: theme?.market_counter_evidence_count == null ? null : Number(theme.market_counter_evidence_count),
+    marketDirectPurchaseEvidenceCount: theme?.market_direct_purchase_evidence_count == null ? null : Number(theme.market_direct_purchase_evidence_count),
+    marketServiceSpendEvidenceCount: theme?.market_service_spend_evidence_count == null ? null : Number(theme.market_service_spend_evidence_count),
+    marketIndependentDemandSourceCount: theme?.market_independent_demand_source_count == null ? null : Number(theme.market_independent_demand_source_count),
     competitors: (competitors || []).map((row: any) => ({
       name: row.name,
       url: row.url,
