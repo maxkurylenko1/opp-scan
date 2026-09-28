@@ -70,18 +70,25 @@ export async function runManualScan() {
     const semantic = await reclusterSignals(150, { pendingOnly: true });
     metadata.semantic = safe(semantic);
 
+    const { data: preliminaryRanking, error: preliminaryRankError } = await supabase.rpc("radar_refresh_and_rank");
+    if (preliminaryRankError) throw preliminaryRankError;
+    metadata.preliminaryRanking = safe(preliminaryRanking);
+
+    // Research a wider candidate set before making the final decision.
+    // This prevents a preliminary score from becoming self-confirming just because only the initial top 3 were researched.
+    const research = await researchThemes(6, false);
+    metadata.marketResearch = safe(research);
+
+    // Build estimates feed the final buildability score, especially the <=2 week solo-builder constraint.
+    const briefs = await generateOpportunityBriefs(8, false);
+    metadata.briefs = safe(briefs);
+
     const { data: ranking, error: rankError } = await supabase.rpc("radar_refresh_and_rank");
     if (rankError) throw rankError;
     metadata.ranking = safe(ranking);
 
-    const research = await researchThemes(3, false);
-    metadata.marketResearch = safe(research);
-
     const validations = await generateValidationPlans(3, false);
     metadata.validations = safe(validations);
-
-    const briefs = await generateOpportunityBriefs(10, false);
-    metadata.briefs = safe(briefs);
 
     const { data: snapshotCount, error: snapshotError } = await supabase.rpc("radar_snapshot_scan", { p_scan_id: scanId, p_limit: 5 });
     if (snapshotError) throw snapshotError;
