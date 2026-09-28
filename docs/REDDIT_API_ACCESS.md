@@ -70,14 +70,15 @@ The required workflow runs in an external Supabase/Next.js research pipeline and
 
 ## Approval request form
 
-Current official developer request:
-https://support.reddithelp.com/hc/en-us/requests/new?tf_42139884615700=api_request_type_developer_clone&ticket_form_id=14868593862164
+Because Opp Scan is used to evaluate potential business opportunities, treat this as commercial/business use rather than a hobby script.
 
-Reddit's Responsible Builder Policy states that API access requires explicit approval. Commercial use requires explicit written approval.
+Use Reddit's official commercial/API access request linked from the Responsible Builder Policy.
+
+Reddit's Responsible Builder Policy states that API access requires explicit approval and commercial use requires explicit written approval.
 
 ## Suggested application answers
 
-**Role:** Developer / individual.
+**Role:** Individual developer / commercial-business use.
 
 **Company name:** n/a.
 
