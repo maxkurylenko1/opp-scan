@@ -50,9 +50,15 @@ Market research must actively search for disconfirming evidence, native/incumben
 
 Do not build from score alone; open the underlying evidence and counter-evidence.
 
-## V1 source strategy
+## Source strategy
 
-Automate durable, low-maintenance sources first. V1 includes Hacker News and GitHub. Add Reddit/search, freelance jobs, marketplaces, changelogs and job boards through adapters after validating that the core signal-to-opportunity loop is useful. Avoid brittle scraping when an API or search layer can provide the same evidence.
+Current automated sources include GitHub, Hacker News, Stack Overflow, Freelancer and Algora. Collection and normalization are intentionally separate: collectors only persist raw evidence, while `radar_process_pending()` performs source-aware scoring so parallel collectors cannot race and assign inconsistent intent.
+
+GitHub collection is demand-focused and filters obvious marketing spam, generated maintenance reports and internal implementation chores. Credible feature/problem reports remain eligible for semantic clustering even when willingness-to-pay is weak; they can survive as Scouts but cannot gain strong Product Confidence without independent product-specific evidence.
+
+Reddit requires stable authenticated access in production. `radar-daily` supports official Reddit OAuth automatically when `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` are configured. Public JSON / old.reddit / RSS are only fallbacks and are treated as degraded because datacenter requests can return 403/429. A Reddit failure is recorded explicitly rather than silently pretending coverage exists.
+
+Avoid brittle scraping when an API, authenticated source or search layer can provide the same evidence.
 
 ## Security note
 
