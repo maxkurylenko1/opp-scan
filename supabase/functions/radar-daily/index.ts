@@ -433,8 +433,9 @@ Deno.serve(async () => {
   try {
     const collectors = [];
     for (const name of ["hackernews", "github", "reddit"] as SourceKey[]) collectors.push(await runCollector(name));
-    const processed = await processRaw();
-    return new Response(JSON.stringify({ ok: true, collectors, processed, at: new Date().toISOString() }), { headers: jsonHeaders });
+    // Collection only. Normalization/scoring is intentionally centralized in radar_process_pending()
+    // to avoid races with parallel collectors and source-specific scoring drift.
+    return new Response(JSON.stringify({ ok: true, collectors, processed: 0, at: new Date().toISOString() }), { headers: jsonHeaders });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }), { status: 500, headers: jsonHeaders });
   }
