@@ -442,6 +442,143 @@ end;
 $$;
 revoke execute on function public.radar_snapshot_scan(uuid,integer) from public,anon,authenticated;
 
+create or replace function public.radar_weekly_rank()
+returns integer
+language plpgsql
+security definer
+set search_path=public
+as $
+declare
+  r record;
+  v_opp_id uuid;
+  v_count integer:=0;
+  v_top uuid[]:='{}';
+  v_watch uuid[]:='{}';
+  v_week_start date := (current_date - ((extract(isodow from current_date)::int)-1));
+  v_week_end date := v_week_start + 6;
+  v_has_semantic boolean;
+begin
+  select exists(select 1 from public.cluster_signals where assignment_method='semantic-v1.1') into v_has_semantic;
+
+  for r in
+    with stats as (
+      select pc.id cluster_id,pc.name,pc.summary,pc.target_customer,pc.category,
+        count(distinct s.id)::int signal_count,
+        count(distinct coalesce(ri.id::text,s.id::text))::int evidence_unit_count,
+        count(distinct src.key)::int source_key_count,
+        count(distinct nullif(ri.author,''))::int author_count,
+        avg(s.pain_score)::numeric pain,
+        avg(s.evidence_quality_score)::numeric evidence,
+        count(distinct s.id) filter(where src.kind='marketplace' or s.money_signal_type in ('job_post','bounty'))::int service_spend_count,
+        count(distinct s.id) filter(
+          where src.kind<>'marketplace'
+            and lower(concat_ws(' ',ri.title,ri.body,s.problem,s.evidence_excerpt)) ~
+              '(would pay|willing to pay|pay for (a|an|this|something)|looking for (a|an|some) (tool|app|service|alternative)|need (a|an) (tool|app|service))'
+            and lower(concat_ws(' ',ri.title,ri.body,s.problem)) !~
+              '(\bi built\b|\bi made\b|\bwe built\b|\bwe launched\b|\bmy saas\b|\bmy app\b|\bshow hn\b)'
+        )::int direct_purchase_count,
+        count(distinct s.id) filter(
+          where src.kind<>'marketplace' and lower(concat_ws(' ',ri.title,ri.body,s.problem)) ~
+            '(\bi built\b|\bi made\b|\bwe built\b|\bwe launched\b|\bmy saas\b|\bmy app\b|\bshow hn\b)'
+        )::int self_promo_count,
+        count(distinct coalesce(ri.id::text,s.id::text))
+          filter(where s.published_at>=now()-interval '7 days')::int recent_count
+      from public.problem_clusters pc
+      join public.cluster_signals cs on cs.cluster_id=pc.id
+      join public.signals s on s.id=cs.signal_id
+      join public.sources src on src.id=s.source_id
+      left join public.raw_items ri on ri.id=s.raw_item_id
+      where pc.status<>'killed'
+        and ((v_has_semantic and pc.clustering_version='semantic-v1.1' and cs.assignment_method='semantic-v1.1')
+          or (not v_has_semantic and pc.clustering_version='heuristic-v1' and cs.assignment_method='heuristic-v1'))
+      group by pc.id,pc.name,pc.summary,pc.target_customer,pc.category
+    ), features as (
+      select *,
+        least(10,greatest(0,ln(greatest(evidence_unit_count,1)+1)/ln(2)*2.6))::numeric freq,
+        least(10,greatest(0,recent_count::numeric/greatest(evidence_unit_count,1)*10))::numeric recency,
+        case when category in ('developer-tool','browser-extension') then 8 else 6 end::numeric reach,
+        case when category in ('developer-tool','browser-extension','automation','ai-tooling') then 8 else 6 end::numeric buildability,
+        case when category in ('developer-tool','automation','ai-tooling','ecommerce') then 7 else 5 end::numeric recurring,
+        least(10,service_spend_count::numeric + direct_purchase_count::numeric*1.5) calibrated_wtp,
+        greatest(0,least(100,
+          (least(source_key_count,4)::numeric/4*25) +
+          (least(evidence_unit_count,6)::numeric/6*20) +
+          (least(author_count+least(service_spend_count,2),5)::numeric/5*15) +
+          (evidence/10*20) +
+          (least(recent_count,4)::numeric/4*20) -
+          least(20,self_promo_count::numeric/greatest(evidence_unit_count,1)*35)
+        )) problem_conf,
+        least(40,
+          (least(direct_purchase_count,3)::numeric/3*20) +
+          (least(service_spend_count,4)::numeric/4*10)
+        ) product_conf
+      from stats
+      where evidence_unit_count>=2 or source_key_count>=2 or service_spend_count>=2
+    ), scored as (
+      select *,
+        greatest(0,least(100,round((
+          pain*20 + calibrated_wtp*20 + reach*15 + freq*10 + recency*10 +
+          5*10 + buildability*10 + recurring*5
+        )/10,2))) score
+      from features
+    )
+    select *,
+      round(problem_conf*0.55+product_conf*0.45,2) overall_conf,
+      case when score>=48 and problem_conf>=48 then 'research' else 'scout' end decision
+    from scored
+    order by
+      case when score>=48 and problem_conf>=48 then 2 else 1 end desc,
+      (score*(0.55+0.45*problem_conf/100)) desc
+    limit 10
+  loop
+    insert into public.opportunities(
+      cluster_id,theme_id,title,thesis,target_customer,pain_summary,why_now,mvp_scope,
+      acquisition_channel,pricing_hypothesis,time_to_validation_days,time_to_money_days,status,
+      opportunity_score,confidence_score,problem_confidence_score,product_confidence_score,decision_tier,
+      biggest_risk,validation_experiment,score_version,generated_at,updated_at
+    ) values (
+      r.cluster_id,null,r.name,
+      format('Early exact-problem signal: %s evidence unit(s) across %s source(s).',r.evidence_unit_count,r.source_key_count),
+      r.target_customer,r.summary,
+      format('Problem confidence %s%%; product confidence is capped because market/product-gap research is not available.',round(r.problem_conf,0)),
+      'Do not build a full product from this exact cluster; first find repeated adjacent evidence or validate manually.',
+      'Source communities and direct outreach',
+      case when r.service_spend_count>0 then 'Service spend exists, but recurring product pricing is unproven.' else 'No recurring pricing assumption yet.' end,
+      7,21,'research',
+      r.score,r.overall_conf,r.problem_conf,r.product_conf,r.decision,
+      'This is an early exact-problem candidate without product-gap research.',
+      'Interview or manually serve users first; promotion to validation requires a broader theme and market research.',
+      'exact-v2.1',now(),now()
+    )
+    on conflict(cluster_id) do update set
+      title=excluded.title,thesis=excluded.thesis,target_customer=excluded.target_customer,pain_summary=excluded.pain_summary,
+      why_now=excluded.why_now,opportunity_score=excluded.opportunity_score,confidence_score=excluded.confidence_score,
+      problem_confidence_score=excluded.problem_confidence_score,product_confidence_score=excluded.product_confidence_score,
+      decision_tier=excluded.decision_tier,biggest_risk=excluded.biggest_risk,score_version=excluded.score_version,
+      status=case when public.opportunities.status in ('build','winner') then public.opportunities.status else excluded.status end,
+      generated_at=now(),updated_at=now()
+    returning id into v_opp_id;
+
+    v_count:=v_count+1;
+    if r.decision='research' and array_length(v_top,1) is distinct from 5 then
+      v_top:=array_append(v_top,v_opp_id);
+    elsif array_length(v_watch,1) is distinct from 3 then
+      v_watch:=array_append(v_watch,v_opp_id);
+    end if;
+  end loop;
+
+  insert into public.weekly_reports(week_start,week_end,generated_at,summary,top_opportunity_ids,watchlist_opportunity_ids,changes)
+  values(v_week_start,v_week_end,now(),
+    format('Generated %s conservative exact-cluster candidates; no exact cluster is auto-promoted to validation.',v_count),
+    v_top,v_watch,jsonb_build_object('generated',v_count,'mode','exact-v2.1'))
+  on conflict(week_start) do update set
+    week_end=excluded.week_end,generated_at=excluded.generated_at,summary=excluded.summary,
+    top_opportunity_ids=excluded.top_opportunity_ids,watchlist_opportunity_ids=excluded.watchlist_opportunity_ids,changes=excluded.changes;
+  return v_count;
+end;
+$;
+revoke execute on function public.radar_weekly_rank() from public,anon,authenticated;
+
 -- Seed the new confidence fields immediately from existing evidence.
 select public.radar_refresh_evidence_metrics();
 select public.radar_theme_rank();
