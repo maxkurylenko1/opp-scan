@@ -267,7 +267,7 @@ export async function researchThemes(limit = 3, force = false) {
     if (!theme) return false;
     if (force || !theme.market_researched_at || theme.market_research_version !== RESEARCH_VERSION) return true;
     return new Date(theme.market_researched_at).getTime() < cutoff;
-  }).slice(0, Math.max(1, Math.min(limit, 5)));
+  }).slice(0, Math.max(1, Math.min(limit, 8)));
 
   const summaries: any[] = [];
   for (const opportunity of selected) {
