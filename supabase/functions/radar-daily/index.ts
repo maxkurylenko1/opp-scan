@@ -168,105 +168,107 @@ async function collectGitHub(): Promise<Raw[]> {
   return [...new Map(all.map((x) => [x.externalId, x])).values()].slice(0, 60);
 }
 
+class RedditAccessBlocked extends Error {
+  code = "reddit_access_blocked";
+}
+
+function redditSubreddits() {
+  const configured = (Deno.env.get("REDDIT_SUBREDDITS") || "SaaS,Entrepreneur,smallbusiness,n8n,automation,webdev")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  return [...new Set(configured)].slice(0, 12);
+}
+
 async function collectReddit(): Promise<Raw[]> {
-  const subreddits = ["SaaS", "Entrepreneur", "smallbusiness", "n8n", "automation", "webdev"];
-  const userAgent = "web:OpportunityRadar:1.3 (opportunity research; contact via project owner)";
   const clientId = Deno.env.get("REDDIT_CLIENT_ID");
   const clientSecret = Deno.env.get("REDDIT_CLIENT_SECRET");
-  let token: string | null = null;
-  const attempts: Array<{ endpoint: string; status: number }> = [];
+  const userAgent = Deno.env.get("REDDIT_USER_AGENT");
 
-  if (clientId && clientSecret) {
-    const auth = btoa(`${clientId}:${clientSecret}`);
-    const tokenRes = await fetch("https://www.reddit.com/api/v1/access_token", {
-      method: "POST",
-      headers: {
-        "Authorization": `Basic ${auth}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": userAgent,
-      },
-      body: "grant_type=client_credentials",
-    });
-    attempts.push({ endpoint: "oauth-token", status: tokenRes.status });
-    if (tokenRes.ok) token = (await tokenRes.json()).access_token || null;
+  // Reddit's 2026 Responsible Builder Policy requires explicit approval before Data API access.
+  // Never fall back to unauthenticated .json/RSS scraping when approval credentials are absent.
+  if (!clientId || !clientSecret || !userAgent) {
+    throw new RedditAccessBlocked(
+      "Reddit Data API approval/credentials required: configure REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET and REDDIT_USER_AGENT after Reddit approval.",
+    );
   }
+
+  const auth = btoa(`${clientId}:${clientSecret}`);
+  const tokenRes = await fetch("https://www.reddit.com/api/v1/access_token", {
+    method: "POST",
+    headers: {
+      "Authorization": `Basic ${auth}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": userAgent,
+    },
+    body: "grant_type=client_credentials",
+  });
+
+  if (!tokenRes.ok) {
+    const body = (await tokenRes.text()).slice(0, 400);
+    throw new Error(`Reddit OAuth token failed: ${tokenRes.status} ${body}`);
+  }
+
+  const tokenJson = await tokenRes.json();
+  const token = tokenJson?.access_token as string | undefined;
+  if (!token) throw new Error("Reddit OAuth token response did not include access_token");
 
   const rows: Raw[] = [];
+  const subreddits = redditSubreddits();
+
   for (const subreddit of subreddits) {
-    const candidates = token
-      ? [{ url: `https://oauth.reddit.com/r/${subreddit}/new?limit=30&raw_json=1`, strategy: "oauth-json" }]
-      : [
-          { url: `https://www.reddit.com/r/${subreddit}/new.json?limit=30&raw_json=1`, strategy: "public-json" },
-          { url: `https://old.reddit.com/r/${subreddit}/new/.json?limit=30&raw_json=1`, strategy: "old-json" },
-          { url: `https://www.reddit.com/r/${subreddit}/.rss?limit=30`, strategy: "rss" },
-        ];
+    const url = `https://oauth.reddit.com/r/${encodeURIComponent(subreddit)}/new?limit=25&raw_json=1`;
+    const res = await fetch(url, {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "User-Agent": userAgent,
+        "Accept": "application/json",
+      },
+    });
 
-    let collected = false;
-    for (const candidate of candidates) {
-      const headers: Record<string,string> = { "User-Agent": userAgent, "Accept": candidate.strategy === "rss" ? "application/atom+xml,application/xml;q=0.9,*/*;q=0.8" : "application/json" };
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const res = await fetch(candidate.url, { headers });
-      attempts.push({ endpoint: `${candidate.strategy}:${subreddit}`, status: res.status });
-      if (!res.ok) continue;
-
-      if (candidate.strategy === "rss") {
-        const xml = await res.text();
-        for (const m of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/gi)) {
-          const entry = m[1];
-          const title = decodeHtml(tagValue(entry, "title"));
-          const body = decodeHtml(tagValue(entry, "content"));
-          const text = `${title}\n${body}`;
-          if (!explicitProblemIntent(text) && !directProductIntent(text)) continue;
-          if (selfPromoText(text)) continue;
-          const id = decodeHtml(tagValue(entry, "id"));
-          const updated = decodeHtml(tagValue(entry, "updated")) || new Date().toISOString();
-          const author = decodeHtml(tagValue(tagValue(entry, "author"), "name")) || null;
-          const href = entry.match(/<link[^>]+href="([^"]+)"/i)?.[1] || candidate.url;
-          rows.push({
-            sourceKey: "reddit", sourceKind: "reddit", externalId: id || href, sourceUrl: href,
-            author, title, body, publishedAt: updated,
-            rawPayload: { subreddit, strategy: candidate.strategy, collector: "reddit-v1.3" },
-          });
-        }
-      } else {
-        const json = await res.json();
-        for (const child of json?.data?.children || []) {
-          const post = child?.data || {};
-          const title = post.title || "";
-          const body = post.selftext || "";
-          const text = `${title}\n${body}`;
-          if (!explicitProblemIntent(text) && !directProductIntent(text)) continue;
-          if (selfPromoText(text)) continue;
-          rows.push({
-            sourceKey: "reddit", sourceKind: "reddit",
-            externalId: String(post.name || post.id || post.permalink),
-            sourceUrl: post.permalink ? `https://www.reddit.com${post.permalink}` : candidate.url,
-            author: post.author || null,
-            title,
-            body,
-            publishedAt: post.created_utc ? new Date(post.created_utc * 1000).toISOString() : new Date().toISOString(),
-            rawPayload: {
-              subreddit, strategy: candidate.strategy, collector: "reddit-v1.3",
-              score: post.score, num_comments: post.num_comments, upvote_ratio: post.upvote_ratio,
-            },
-          });
-        }
-      }
-      collected = true;
-      break;
+    if (!res.ok) {
+      const body = (await res.text()).slice(0, 300);
+      throw new Error(`Reddit OAuth listing failed for r/${subreddit}: ${res.status} ${body}`);
     }
-    if (!collected) continue;
+
+    const json = await res.json();
+    for (const child of json?.data?.children || []) {
+      const post = child?.data || {};
+      const title = post.title || "";
+      const body = post.selftext || "";
+      const text = `${title}\n${body}`;
+
+      if (!explicitProblemIntent(text) && !directProductIntent(text)) continue;
+      if (selfPromoText(text)) continue;
+
+      rows.push({
+        sourceKey: "reddit",
+        sourceKind: "reddit",
+        externalId: String(post.name || post.id || post.permalink),
+        sourceUrl: post.permalink ? `https://www.reddit.com${post.permalink}` : url,
+        author: post.author || null,
+        title,
+        body,
+        publishedAt: post.created_utc
+          ? new Date(post.created_utc * 1000).toISOString()
+          : new Date().toISOString(),
+        rawPayload: {
+          subreddit,
+          strategy: "approved-oauth",
+          collector: "reddit-v1.4",
+          score: post.score,
+          num_comments: post.num_comments,
+          upvote_ratio: post.upvote_ratio,
+        },
+      });
+    }
   }
 
-  const deduped = [...new Map(rows.map((x) => [x.externalId, x])).values()]
-    .sort((a,b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
+  return [...new Map(rows.map((x) => [x.externalId, x])).values()]
+    .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
     .slice(0, 60);
-
-  if (!deduped.length && attempts.every((x) => x.status >= 400)) {
-    throw new Error(`Reddit unavailable: ${attempts.map((x) => `${x.endpoint}=${x.status}`).join(", ")}`);
-  }
-  return deduped;
 }
+
 
 function scoreText(text: string, sourceKey: string) {
   const lower = text.toLowerCase();
@@ -426,8 +428,23 @@ async function runCollector(name: SourceKey) {
     await supabase.from("sources").update({ last_success_at: new Date().toISOString() }).eq("id", sourceId);
     return { collector: name, seen: items.length, inserted };
   } catch (e) {
-    await supabase.from("collection_runs").update({ status: "failed", finished_at: new Date().toISOString(), error_text: e instanceof Error ? e.message : String(e) }).eq("id", run.id);
-    return { collector: name, seen: 0, inserted: 0, error: e instanceof Error ? e.message : String(e) };
+    const message = e instanceof Error ? e.message : String(e);
+    if (e instanceof RedditAccessBlocked) {
+      await supabase.from("collection_runs").update({
+        status: "blocked",
+        finished_at: new Date().toISOString(),
+        error_text: message,
+        metadata: {
+          reason: "reddit_approval_required",
+          policy: "Responsible Builder Policy",
+          collector_version: "reddit-v1.4",
+        },
+      }).eq("id", run.id);
+      return { collector: name, seen: 0, inserted: 0, blocked: true, error: message };
+    }
+
+    await supabase.from("collection_runs").update({ status: "failed", finished_at: new Date().toISOString(), error_text: message }).eq("id", run.id);
+    return { collector: name, seen: 0, inserted: 0, error: message };
   }
 }
 
