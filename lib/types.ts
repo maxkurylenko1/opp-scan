@@ -84,6 +84,9 @@ export type OpportunityView = {
   origin?: "theme" | "exact";
   opportunityScore: number;
   confidenceScore: number;
+  problemConfidenceScore?: number | null;
+  productConfidenceScore?: number | null;
+  decisionTier?: "scout" | "research" | "validate" | "build" | null;
   targetCustomer?: string | null;
   timeToValidationDays?: number | null;
   whyNow?: string | null;
@@ -94,6 +97,15 @@ export type OpportunityView = {
   pricingHypothesis?: string | null;
   marketSummary?: string | null;
   marketResearchedAt?: string | null;
+  marketProductDemandScore?: number | null;
+  marketGapScore?: number | null;
+  marketSaturationScore?: number | null;
+  marketIncumbentRiskScore?: number | null;
+  marketTimingScore?: number | null;
+  marketCounterEvidenceCount?: number | null;
+  marketDirectPurchaseEvidenceCount?: number | null;
+  marketServiceSpendEvidenceCount?: number | null;
+  marketIndependentDemandSourceCount?: number | null;
   competitors?: CompetitorView[];
   marketEvidence?: MarketEvidenceView[];
   validationPlan?: ValidationPlanView | null;
