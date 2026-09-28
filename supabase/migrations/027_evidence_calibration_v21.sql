@@ -447,7 +447,7 @@ returns integer
 language plpgsql
 security definer
 set search_path=public
-as $
+as $$
 declare
   r record;
   v_opp_id uuid;
@@ -576,7 +576,7 @@ begin
     top_opportunity_ids=excluded.top_opportunity_ids,watchlist_opportunity_ids=excluded.watchlist_opportunity_ids,changes=excluded.changes;
   return v_count;
 end;
-$;
+$$;
 revoke execute on function public.radar_weekly_rank() from public,anon,authenticated;
 
 -- Seed the new confidence fields immediately from existing evidence.
