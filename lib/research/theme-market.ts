@@ -296,8 +296,7 @@ export async function researchThemes(limit = 3, force = false) {
 
     await supabase.from("competitors")
       .delete()
-      .eq("opportunity_id", opportunity.id)
-      .eq("research_version", RESEARCH_VERSION);
+      .eq("opportunity_id", opportunity.id);
     await supabase.from("evidence")
       .delete()
       .eq("opportunity_id", opportunity.id)
