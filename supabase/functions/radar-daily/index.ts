@@ -102,7 +102,7 @@ function githubNoise(title: string, body: string) {
   const t = `${title}\n${body}`;
   const titleNoise = /^(?:fix|feat|chore|docs|test|tests|refactor|ci|build|release|perf|spec|research|prd|deep-review|fork watch|daily|weekly|phase\s*\d*|history|master index|team-status|curriculum-eval)(?:\(|:|\s|—|-|\[)/i;
   const spam = /(best .{0,40}(?:agency|company)|digital marketing agency|industrial training|build your career|career with|internship program|seo services|web development company|youtube links|ссылки youtube|sample feature request for testing|test feature issue for automation|invoice ocr api:\s*automate)/i;
-  const generatedMeta = /(daily repository status report|master index \(|fork watch:|deep manual audit|this issue does not authorize|definition of done for this issue|current checkpoint:|implementation repository:)/i;
+  const generatedMeta = /(daily repository status report|master index \(|fork watch:|deep manual audit|this issue does not authorize|definition of done for this issue|current checkpoint:|implementation repository:|\npart of #\d+)/i;
   return titleNoise.test(title.trim()) || spam.test(t) || generatedMeta.test(t);
 }
 
@@ -360,7 +360,9 @@ async function processRaw(limit = 200) {
 
     let actionable = false;
     if (sourceKey === "github") {
-      actionable = !noisyGithub && githubDemand && (relevance >= 5 || money.type !== "none");
+      // For GitHub, "actionable" means eligible for semantic clustering, not proven business value.
+      // Strongly formulated feature requests with decent evidence stay alive as Scouts even without WTP.
+      actionable = !noisyGithub && githubDemand && (scores.evidence >= 6 || relevance >= 5 || money.type !== "none");
     } else if (sourceKey === "reddit") {
       actionable = !promotional && explicitProblem && relevance >= 5;
     } else if (sourceKey === "hackernews") {
