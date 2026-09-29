@@ -22,7 +22,7 @@ function classifyDemand(title: string, description: string, jobs: string): Deman
     /(automated .{0,40}(ad viewer|ad clicking)|stream .{0,40}(ads?|views?) every day|ticket[- ]buying bot|slot (?:picking|selection) automation|mass account creation|credential stuffing)/i.test(narrative);
 
   const strongOperationalPain =
-    /(manual process|manually .{0,70}(every|each|repeat|copy|enter|check|send|update)|recurring|repetitive|every (day|week|month|order|time)|each (order|vendor|customer|file)|routine workflows?|day[- ]to[- ]day .{0,50}(manual|work|process)|reminder|notification|keep .{0,60} in sync|synchroni[sz]e|order confirmation|report generation|scheduled report|monitor(ing)? .{0,50}(changes|status|price|data|site)|business metrics|data across .{0,80}(dashboard|report))/i.test(narrative);
+    /(manual process|manually .{0,70}(every|each|repeat|copy|enter|check|send|update)|recurring|repetitive|every (day|week|month)|routine workflows?|day[- ]to[- ]day .{0,50}(manual|work|process)|keep .{0,60} in sync|synchroni[sz]e|order confirmation|report generation|scheduled report|monitor(ing)? .{0,50}(changes|status|price|data|site)|business metrics|data across .{0,80}(dashboard|report))/i.test(narrative);
 
   const batchTransformation =
     /((batch|multiple|dozens|hundreds|thousands|collection) .{0,80}(csv|pdf|document|file|record|image).{0,120}(convert|extract|transfer|process|clean|organize|merge|classify|copy|type))|((convert|extract|transfer|process|clean|organize|merge|classify).{0,120}(batch|multiple|dozens|hundreds|thousands|collection).{0,80}(csv|pdf|document|file|record|image))/i.test(narrative);
@@ -45,11 +45,9 @@ function classifyDemand(title: string, description: string, jobs: string): Deman
     !nonSoftwareOrMaintenance &&
     !abusiveAutomation &&
     (
-      strongOperationalPain ||
-      batchTransformation ||
-      operationalIntegration ||
-      dataCollectionWorkflow ||
-      (automationPain && !explicitProductCommission)
+      explicitProductCommission
+        ? (strongOperationalPain || batchTransformation || operationalIntegration || dataCollectionWorkflow)
+        : (strongOperationalPain || batchTransformation || operationalIntegration || dataCollectionWorkflow || automationPain)
     );
 
   const customBuild =
@@ -87,7 +85,7 @@ Deno.serve(async () => {
       source_id: source.id,
       collector: "freelancer",
       status: "running",
-      metadata: { collector_version: "freelancer-v1.3.3" },
+      metadata: { collector_version: "freelancer-v1.3.4" },
     })
     .select("id")
     .single();
@@ -148,7 +146,7 @@ Deno.serve(async () => {
           jobs: p.jobs,
           urgent: p.urgent,
           bid_stats: p.bid_stats,
-          collector: "freelancer-v1.3.3",
+          collector: "freelancer-v1.3.4",
           evidence_role: "service_spend",
           demand_class: demandClass,
           full_description: Boolean(p.description),
@@ -169,7 +167,7 @@ Deno.serve(async () => {
         records_seen: projects.length,
         records_inserted: inserted,
         metadata: {
-          collector_version: "freelancer-v1.3.3",
+          collector_version: "freelancer-v1.3.4",
           role: "service_spend",
           demand_classes: classCounts,
         },
