@@ -1100,6 +1100,205 @@ $function$
 
 revoke execute on function public.radar_weekly_rank() from public,anon,authenticated;
 
+CREATE OR REPLACE FUNCTION public.radar_theme_rank()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  r record;
+  v_opp_id uuid;
+  v_count integer := 0;
+  v_top uuid[] := '{}';
+  v_watch uuid[] := '{}';
+  v_week_start date := (current_date - ((extract(isodow from current_date)::int)-1));
+  v_week_end date := v_week_start + 6;
+begin
+  update public.opportunities
+  set status='watching',
+      decision_tier='scout',
+      score_version=case when score_version='theme-v2.1' then 'theme-v2.1-retired' else score_version end,
+      updated_at=now()
+  where theme_id is not null
+    and status in ('watching','research','validate')
+    and status not in ('build','winner');
+
+  for r in
+    with base as (
+      select
+        ot.*,tm.*,
+        (ot.market_researched_at is not null and ot.market_research_version='web-v2.1') as current_research,
+        least(10,greatest(0,ln(greatest(tm.evidence_unit_count,1)+1)/ln(2)*2.6))::numeric as freq,
+        least(10,greatest(0,tm.recent_evidence_unit_count::numeric/greatest(tm.evidence_unit_count,1)*10))::numeric as recency,
+        case when ot.category in ('developer-tool','browser-extension') then 8 else 6 end::numeric as preliminary_reach,
+        case
+          when ob.build_days_max is null then case when ot.category in ('developer-tool','browser-extension','automation','ai-tooling') then 8 else 6 end::numeric
+          when ob.build_days_max<=7 then 9::numeric
+          when ob.build_days_max<=14 then 8::numeric
+          when ob.build_days_max<=21 then 5::numeric
+          else 2::numeric
+        end as buildability,
+        case when ot.category in ('developer-tool','automation','ai-tooling','ecommerce') then 7 else 5 end::numeric as recurring,
+        coalesce(case when ot.market_research_version='web-v2.1' then ot.market_gap_score end,5)::numeric as gap,
+        coalesce(case when ot.market_research_version='web-v2.1' then ot.market_timing_score end,
+                 least(10,greatest(0,tm.recent_evidence_unit_count::numeric/greatest(tm.evidence_unit_count,1)*10)))::numeric as timing,
+        coalesce(case when ot.market_research_version='web-v2.1' then ot.market_regulatory_capital_risk_score end,0)::numeric as regulatory_risk
+      from public.opportunity_themes ot
+      join public.theme_metrics tm on tm.theme_id=ot.id
+      left join public.opportunities ox on ox.theme_id=ot.id
+      left join public.opportunity_briefs ob on ob.opportunity_id=ox.id
+      where ot.theme_version='theme-v1.0'
+        and ot.status<>'killed'
+        and tm.exact_cluster_count>=2
+        and (
+          tm.independent_source_key_count>=2
+          or tm.service_spend_signal_count>=2
+          or tm.evidence_unit_count>=3
+        )
+    ), confidence_parts as (
+      select *,
+        greatest(0,least(100,
+          (least(independent_source_key_count,4)::numeric/4*25) +
+          (least(evidence_unit_count,6)::numeric/6*20) +
+          (least(unique_author_count + least(service_spend_signal_count,2),5)::numeric/5*15) +
+          (avg_evidence_quality/10*20) +
+          (least(recent_evidence_unit_count,4)::numeric/4*20) -
+          least(20,self_promo_signal_count::numeric/greatest(evidence_unit_count,1)*35)
+        )) as problem_conf,
+        greatest(0,
+          (least(direct_product_purchase_signal_count,3)::numeric/3*20) +
+          (least(service_spend_signal_count,4)::numeric/4*10) +
+          (case when current_research then coalesce(market_product_demand_score,0)/10*25 else 0 end) +
+          (case when current_research then least(market_independent_demand_source_count,4)::numeric/4*15 else 0 end) +
+          (case when current_research then 10 else 0 end) +
+          (case when current_research then coalesce(market_gap_score,5)/10*10 else 0 end) -
+          (case when current_research then least(market_counter_evidence_count,3)*4 else 0 end) -
+          (case when current_research then coalesce(market_saturation_score,0)*0.7 else 0 end) -
+          (case when current_research then coalesce(market_incumbent_risk_score,0)*0.7 else 0 end)
+        ) as product_conf_raw,
+        least(10,
+          least(service_spend_signal_count,4)::numeric*1.0 +
+          least(direct_product_purchase_signal_count,3)::numeric*1.5 +
+          case when current_research then least(market_direct_purchase_evidence_count,2)::numeric*0.75 else 0 end
+        ) as calibrated_wtp
+      from base
+    ), confidence as (
+      select *,
+        least(100,
+          case
+            when not current_research then least(product_conf_raw,40)
+            when direct_product_purchase_signal_count=0
+             and market_direct_purchase_evidence_count=0
+             and coalesce(market_product_demand_score,0)<6 then least(product_conf_raw,55)
+            else product_conf_raw
+          end
+        ) as product_conf
+      from confidence_parts
+    ), scored as (
+      select *,
+        greatest(0,least(100,
+          round((
+            avg_pain*20 + calibrated_wtp*20 + preliminary_reach*15 + freq*10 +
+            timing*10 + gap*10 + buildability*10 + recurring*5
+          )/10 - least(8,regulatory_risk*0.8),2)
+        )) as score
+      from confidence
+    ), decided as (
+      select *,
+        round((problem_conf*0.55 + product_conf*0.45),2) as overall_conf,
+        case
+          when score>=65 and problem_conf>=65 and product_conf>=50 and current_research then 'validate'
+          when score>=48 and problem_conf>=48 then 'research'
+          else 'scout'
+        end as decision
+      from scored
+    )
+    select *
+    from decided
+    order by
+      case decision when 'validate' then 3 when 'research' then 2 else 1 end desc,
+      (score*(0.50+0.30*problem_conf/100+0.20*product_conf/100)) desc
+    limit 12
+  loop
+    insert into public.opportunities(
+      cluster_id,theme_id,title,thesis,target_customer,pain_summary,why_now,mvp_scope,
+      acquisition_channel,pricing_hypothesis,time_to_validation_days,time_to_money_days,status,
+      opportunity_score,confidence_score,problem_confidence_score,product_confidence_score,decision_tier,
+      biggest_risk,validation_experiment,score_version,generated_at,updated_at
+    ) values (
+      null,r.id,r.name,
+      format('Observed problem pattern: %s evidence unit(s) across %s source(s); %s service-spend signal(s), %s direct product-intent signal(s).',
+        r.evidence_unit_count,r.independent_source_key_count,r.service_spend_signal_count,r.direct_product_purchase_signal_count),
+      null,r.summary,
+      format('Problem confidence %s%%; product confidence %s%%; %s.',
+        round(r.problem_conf,0),round(r.product_conf,0),
+        case when r.current_research then 'current competitor/demand research included' else 'product-gap research still required' end),
+      'Build only after the product hypothesis passes a concrete validation; keep the first version scoped to the shared painful job.',
+      'Use the source communities, marketplaces, and direct outreach to the users represented by the evidence.',
+      coalesce(r.market_pricing_hypothesis,
+        case when r.service_spend_signal_count>0 then 'Start with a paid concierge pilot; recurring SaaS pricing is not proven yet.' else 'Validate willingness to pay before setting recurring pricing.' end),
+      7,14,
+      case when r.decision='validate' then 'validate' when r.decision='research' then 'research' else 'watching' end,
+      r.score,r.overall_conf,r.problem_conf,r.product_conf,r.decision,
+      coalesce(r.market_biggest_risk,
+        case
+          when not r.current_research then 'Problem evidence exists, but the product gap and recurring willingness to pay are not yet researched.'
+          when r.product_conf<50 then 'The problem is more proven than demand for this specific product shape.'
+          else 'Evidence can still fail to convert into paid adoption; validate with a real commitment.'
+        end),
+      case when r.decision='validate'
+        then 'Offer a paid/manual pilot to qualified users and require a real commitment before building the full SaaS.'
+        else 'Research the gap and interview users; do not build a full MVP until product-specific demand is stronger.'
+      end,
+      'theme-v2.1',now(),now()
+    )
+    on conflict (theme_id) where theme_id is not null do update set
+      title=excluded.title,thesis=excluded.thesis,pain_summary=excluded.pain_summary,why_now=excluded.why_now,
+      pricing_hypothesis=excluded.pricing_hypothesis,
+      status=case when public.opportunities.status in ('build','winner') then public.opportunities.status else excluded.status end,
+      opportunity_score=excluded.opportunity_score,confidence_score=excluded.confidence_score,
+      problem_confidence_score=excluded.problem_confidence_score,product_confidence_score=excluded.product_confidence_score,
+      decision_tier=case when public.opportunities.status in ('build','winner') then 'build' else excluded.decision_tier end,
+      biggest_risk=excluded.biggest_risk,validation_experiment=excluded.validation_experiment,
+      score_version=excluded.score_version,generated_at=now(),updated_at=now()
+    returning id into v_opp_id;
+
+    insert into public.opportunity_score_breakdown(
+      opportunity_id,pain,willingness_to_pay,reachability,frequency,growth_timing,
+      competitor_gap,buildability,recurring_revenue,evidence_confidence,penalty,final_score,score_version
+    ) values (
+      v_opp_id,r.avg_pain,r.calibrated_wtp,r.preliminary_reach,r.freq,r.timing,r.gap,r.buildability,r.recurring,
+      r.overall_conf/10,least(8,r.regulatory_risk*0.8),r.score,'theme-v2.1'
+    );
+
+    v_count:=v_count+1;
+    if r.decision in ('validate','research') and array_length(v_top,1) is distinct from 5 then
+      v_top:=array_append(v_top,v_opp_id);
+    elsif array_length(v_watch,1) is distinct from 3 then
+      v_watch:=array_append(v_watch,v_opp_id);
+    end if;
+  end loop;
+
+  insert into public.weekly_reports(week_start,week_end,generated_at,summary,top_opportunity_ids,watchlist_opportunity_ids,changes)
+  values(
+    v_week_start,v_week_end,now(),
+    format('Generated %s evidence-calibrated opportunity themes. Problem confidence and product confidence are scored separately.',v_count),
+    v_top,v_watch,
+    jsonb_build_object('generated',v_count,'mode','theme-v2.1','confidence_model','problem-vs-product')
+  )
+  on conflict(week_start) do update set
+    week_end=excluded.week_end,generated_at=excluded.generated_at,summary=excluded.summary,
+    top_opportunity_ids=excluded.top_opportunity_ids,watchlist_opportunity_ids=excluded.watchlist_opportunity_ids,
+    changes=excluded.changes;
+
+  return v_count;
+end;
+$function$
+;
+
+revoke execute on function public.radar_theme_rank() from public,anon,authenticated;
+
 -- Rebuild the subset that already has embeddings so V1.2 can be verified immediately.
 -- Signals without embeddings are picked up by the normal Vercel recluster job.
 create or replace function public.radar_recluster_existing_embeddings_v12()
