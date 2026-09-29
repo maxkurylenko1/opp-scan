@@ -49,13 +49,13 @@ async function ensureSource() {
 }
 
 function relevantRelease(text: string) {
-  return /(breaking|deprecat|migration|new api|api |sdk|integration|support for|webhook|oauth|auth|billing|workflow|automation|agent|mcp|browser|extension|database|realtime|storage|deploy|serverless|edge|rate limit|permission|security|pricing)/i.test(text);
+  return /(breaking change|breaking:|deprecat|migration required|upgrade note|new (?:api|feature|capability|integration)|introduc(?:e|ing)|add support for|now supports|generally available|\bga\b|oauth|authorization|mcp|agent|realtime|webhook|billing|pricing|rate limit|permission model|security upgrade|new endpoint|new model|new sdk)/i.test(text);
 }
 
 Deno.serve(async () => {
   const sourceId = await ensureSource();
   const { data: run, error: runError } = await db.from("collection_runs")
-    .insert({ source_id: sourceId, collector: "platform_releases", status: "running", metadata: { collector_version: "releases-v1.0" } })
+    .insert({ source_id: sourceId, collector: "platform_releases", status: "running", metadata: { collector_version: "releases-v1.1" } })
     .select("id").single();
 
   if (runError) return new Response(JSON.stringify({ ok: false, error: runError.message }), { status: 500 });
@@ -83,6 +83,8 @@ Deno.serve(async () => {
       let kept = 0;
       for (const release of payload || []) {
         if (release.draft) continue;
+        if (release.prerelease && Deno.env.get("RELEASE_INCLUDE_PRERELEASE") !== "true") continue;
+        if (kept >= 3) break;
         const publishedAt = release.published_at || release.created_at;
         if (!publishedAt || new Date(publishedAt).getTime() < since) continue;
 
@@ -110,7 +112,7 @@ Deno.serve(async () => {
             repository: repo,
             tag_name: release.tag_name || null,
             prerelease: Boolean(release.prerelease),
-            collector: "releases-v1.0",
+            collector: "releases-v1.1",
             evidence_role: "market_context",
           },
           content_hash: contentHash,
@@ -127,7 +129,7 @@ Deno.serve(async () => {
       finished_at: new Date().toISOString(),
       records_seen: seen,
       records_inserted: inserted,
-      metadata: { collector_version: "releases-v1.0", repositories: repos, role: "market_context" },
+      metadata: { collector_version: "releases-v1.1", repositories: repos, role: "market_context" },
     }).eq("id", run.id);
     await db.from("sources").update({ last_success_at: new Date().toISOString() }).eq("id", sourceId);
 
