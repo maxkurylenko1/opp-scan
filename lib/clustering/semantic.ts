@@ -3,7 +3,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 
 const MODEL = "text-embedding-3-small";
 const DIMENSIONS = 1536;
-const ASSIGNMENT = "semantic-v1.1";
+const ASSIGNMENT = "semantic-v1.2";
 const NOISE_MARKER = "noise-filter-v1.1";
 
 const STOPWORDS = new Set([
@@ -140,10 +140,10 @@ function chooseMatch(matches: MatchRow[], signal: SignalRow) {
   if (isAttachableContext(signal)) {
     for (const match of matches) {
       const similarity = Number(match.similarity);
-      if (similarity >= 0.82) return match;
+      if (similarity >= 0.88) return match;
       if (
         match.category === signal.category &&
-        similarity >= 0.74 &&
+        similarity >= 0.80 &&
         hasSharedSubject(match.name, signal.problem)
       ) return match;
     }
@@ -153,10 +153,10 @@ function chooseMatch(matches: MatchRow[], signal: SignalRow) {
   if (isMarketplace(signal)) {
     for (const match of matches) {
       const similarity = Number(match.similarity);
-      if (similarity >= 0.82) return match;
+      if (similarity >= 0.86) return match;
       if (
         match.category === signal.category &&
-        similarity >= 0.72 &&
+        similarity >= 0.78 &&
         hasSharedSubject(match.name, signal.problem)
       ) return match;
     }
@@ -165,9 +165,12 @@ function chooseMatch(matches: MatchRow[], signal: SignalRow) {
 
   for (const match of matches) {
     const similarity = Number(match.similarity);
-    if (similarity >= 0.76) return match;
-    if (match.category === signal.category && similarity >= 0.68) return match;
-    if (match.category === signal.category && similarity >= 0.56 && hasSharedSubject(match.name, signal.problem)) return match;
+    if (similarity >= 0.82) return match;
+    if (
+      match.category === signal.category &&
+      similarity >= 0.72 &&
+      hasSharedSubject(match.name, signal.problem)
+    ) return match;
   }
   return null;
 }
@@ -182,6 +185,7 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
       .from("signals")
       .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score,money_signal_type,evidence_role,is_actionable,embedding_model,sources!inner(key,kind)")
       .or("is_actionable.eq.true,evidence_role.eq.market_context")
+      .order("is_actionable", { ascending: false })
       .order("published_at", { ascending: false })
       .limit(500),
     supabase.from("cluster_signals").select("signal_id").eq("assignment_method", ASSIGNMENT),
