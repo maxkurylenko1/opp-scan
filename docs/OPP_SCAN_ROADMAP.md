@@ -12,9 +12,12 @@ Status updated: 2026-09-28
    - Validate real OAuth collection, source precision, retention/privacy behavior, and contribution to themes.
 
 2. **Hacker News evidence split**
-   - Separate launch/competitor evidence from independent user-demand evidence.
-   - Do not let Show HN/self-promotion raise buyer confidence.
-   - Preserve launches as competitor/timing signals.
+   - Status: COMPLETE (V2.5.2).
+   - `Show HN` and promotional Ask HN posts are stored as `launch_competitor`, never as buyer demand.
+   - Genuine Ask HN pain is stored as `problem_demand` and can survive as Scout evidence without purchase intent.
+   - Generic HN stories are retained as `market_context`, not problem evidence.
+   - HN money evidence now requires explicit product purchase/service-spend intent; arbitrary dollar/budget mentions do not count.
+   - HN engagement can strengthen evidence quality but cannot convert a launch into demand.
 
 3. **Algora value review**
    - Measure freshness, unique evidence contribution and overlap with GitHub/freelance sources.
