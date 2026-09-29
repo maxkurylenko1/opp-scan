@@ -89,8 +89,9 @@ begin
     if r.source_key='github' then
       v_noise :=
         lower(coalesce(r.title,'')) ~ '^(fix|feat|chore|docs|test|tests|refactor|ci|build|release|perf|spec|research|prd|deep-review|fork watch|daily|weekly|phase[ ]*[0-9]*|history|master index|team-status|curriculum-eval)(\(|:|[ ]|—|-|\[)'
+        or lower(coalesce(r.title,'')) ~ '^\[(phase|roadmap|epic)[ ]*[0-9]*\]'
         or v_text ~ '(best .{0,40}(agency|company)|digital marketing agency|industrial training|build your career|career with|internship program|seo services|web development company|youtube links|ссылки youtube|sample feature request for testing|test feature issue for automation|invoice ocr api:[ ]*automate)'
-        or v_text ~ '(daily repository status report|master index \(|fork watch:|deep manual audit|this issue does not authorize|definition of done for this issue|current checkpoint:|implementation repository:)'
+        or v_text ~ '(daily repository status report|master index \(|fork watch:|deep manual audit|this issue does not authorize|definition of done for this issue|current checkpoint:|implementation repository:|parent roadmap:|blocked by:[ ]*#[0-9]|implement only after|parent issue:[ ]*#[0-9]|subtask of #[0-9])'
         or lower(coalesce(r.body,'')) ~ '^part of #[0-9]+';
     end if;
 
@@ -491,9 +492,12 @@ begin
   -- Every refresh starts by retiring non-manual exact candidates. Current candidates
   -- are reactivated below; candidates that lost valid evidence remain Scouts/watchers.
   update public.opportunities
-  set status='watching', decision_tier='scout', updated_at=now()
+  set status='watching',
+      decision_tier='scout',
+      score_version=case when score_version='exact-v2.2' then 'exact-v2.2-retired' else score_version end,
+      updated_at=now()
   where theme_id is null
-    and status in ('research','validate')
+    and status in ('research','validate','watching')
     and status not in ('build','winner');
 
   for r in
