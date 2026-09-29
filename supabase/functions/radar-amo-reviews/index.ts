@@ -23,53 +23,10 @@ function clean(value: string | null | undefined) {
 }
 
 function classifyReview(text: string): "problem_demand" | "market_context" | null {
-  const strongGap = /(
-    no way to|
-    missing (?:feature|option|support|ability)|
-    feature request|
-    wish (?:it|this|there|i|we)|
-    would be nice|
-    support for|
-    option to|
-    allow (?:me|us|users) to|
-    needs? (?:an? )?(?:option|feature|way|ability|support)|
-    need to (?:be able|have|use|export|import|configure|customi[sz]e|choose|set|separate|manage|automate)|
-    can(?:not|'t) .{0,50}(?:configure|customi[sz]e|export|import|choose|set|add .*exception|use separate|manage|automate)|
-    have to .{0,60}manually|
-    manually .{0,60}(?:every|each|again|repeat)|
-    manual workflow|
-    tedious|
-    too many steps|
-    looking for (?:an? )?alternative|
-    too expensive|
-    paywall
-  )/ix.test(text);
+  const strongGap = /(no way to|missing (?:feature|option|support|ability)|feature request|wish (?:it|this|there|i|we)|would be nice|support for|option to|allow (?:me|us|users) to|needs? (?:an? )?(?:option|feature|way|ability|support)|need to (?:be able|have|use|export|import|configure|customi[sz]e|choose|set|separate|manage|automate)|can(?:not|'t) .{0,50}(?:configure|customi[sz]e|export|import|choose|set|add .*exception|use separate|manage|automate)|have to .{0,60}manually|manually .{0,60}(?:every|each|again|repeat)|manual workflow|tedious|too many steps|looking for (?:an? )?alternative|too expensive|paywall)/i.test(text);
   if (strongGap) return "problem_demand";
 
-  const productFailure = /(
-    doesn'?t work|
-    does not work|
-    not working|
-    broken|
-    stopped working|
-    no longer works?|
-    after (?:the )?(?:latest )?update|
-    version \d|
-    slow|
-    crash|
-    freeze|
-    unusable|
-    bug|
-    fails?|
-    error|
-    blank (?:screen|page)|
-    can(?:not|'t) (?:sign in|log in|login)|
-    sign in fails?|
-    login fails?|
-    sync .{0,30}error|
-    lost|
-    deleted
-  )/ix.test(text);
+  const productFailure = /(doesn'?t work|does not work|not working|broken|stopped working|no longer works?|after (?:the )?(?:latest )?update|version \d|slow|crash|freeze|unusable|bug|fails?|error|blank (?:screen|page)|can(?:not|'t) (?:sign in|log in|login)|sign in fails?|login fails?|sync .{0,30}error|lost|deleted)/i.test(text);
   if (productFailure) return "market_context";
 
   return null;
