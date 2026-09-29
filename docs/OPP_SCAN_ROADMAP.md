@@ -34,8 +34,10 @@ Status updated: 2026-09-28
    - Browser extension reviews: LIVE. Official Mozilla Add-ons v5 search + ratings APIs. Only 1–2★ reviews with text are considered; strong feature/workflow gaps become `problem_demand`, while regressions/product failures stay `market_context`.
    - Review author identities are not persisted.
    - Both collectors run daily before normalization.
-   - Stronger freelance/job demand sources: NEXT.
-   - Continue prioritizing independent pain, spend or timing evidence rather than raw volume.
+   - Stronger freelance/job demand: LIVE via calibrated Freelancer v1.3.4. The collector now uses full buyer descriptions and classifies spend into `repeatable_workflow`, `custom_build`, and `generic_labor`; only repeatable workflows are actionable discovery evidence.
+   - Generic job boards are intentionally not added at this stage: ordinary hiring proves staffing demand, not a reusable product gap, and would mostly add volume/noise.
+   - Release notes and review failures may attach as `market_context` to an existing semantic problem cluster, but they can never seed a cluster themselves.
+   - Status: COMPLETE for V2.7 source expansion; continue evaluating additional sources only when they add a genuinely new evidence class.
 
 ## Guiding rule
 
