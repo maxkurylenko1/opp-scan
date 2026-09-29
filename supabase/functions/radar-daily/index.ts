@@ -58,7 +58,7 @@ function tagValue(block: string, tag: string) {
 }
 
 function hnAskLooksPromotional(text: string) {
-  return /(\bi built\b|\bi made\b|\bwe built\b|\bwe launched\b|\bmy (?:app|tool|extension|saas)\b|rolling out|available (?:on|in) (?:the )?(?:chrome web store|app store|play store)|chrome web store|try it|check it out|search ["“'][^"”']+["”'] in|source:\s*https?:\/\/|demo:\s*https?:\/\/)/i.test(text);
+  return /(\bi built\b|\bi made\b|\bi(?:'m| am) building\b|\bwe built\b|\bwe launched\b|\bwe(?:'re| are) building\b|\bmy (?:app|tool|extension|saas)\b|looking for feedback on (?:the|my|our) beta|rolling out|available (?:on|in) (?:the )?(?:chrome web store|app store|play store)|chrome web store|try it|check it out|search ["“'][^"”']+["”'] in|source:\s*https?:\/\/|demo:\s*https?:\/\/)/i.test(text);
 }
 
 function hnQuestionDemand(text: string) {
