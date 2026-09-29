@@ -249,30 +249,44 @@ $function$;
 
 revoke execute on function public.radar_process_pending(integer) from public,anon,authenticated;
 
-with classified as (
+with base as (
   select
     ri.id,
-    lower(concat_ws(' ',ri.title,ri.body)) txt,
-    case
-      when lower(concat_ws(' ',ri.title,ri.body)) ~
-        '(automat(e|ion|ic)|workflow|power automate|zapier|make\.com|n8n|webhook|api integration|system integration|sync|synchroni[sz]e|dashboard|reporting|report generation|reminder|notification|monitor(ing)?|scrap(e|ing)|data extraction|ocr|batch (of )?(files|documents|images|records)|multiple (files|documents|records)|every (day|week|month|order|time)|each (order|vendor|customer|file)|recurring|repetitive|manual process|manually .{0,60}(every|each|repeat)|crm|google sheets|sharepoint|csv .{0,40}(excel|sheet)|pdf .{0,40}(word|excel|text)|document .{0,40}(convert|extract|process)|order confirmation|lead .{0,30}(enrich|collect|extract)|business metrics)'
-       and lower(concat_ws(' ',ri.title,ri.body)) !~
-        '(logo design|graphic design|video edit|video production|animation|3d model|3d animation|voice ?over|transcription|translation|proofread|article writing|academic|research paper|tutoring|sales representative|cold calling|affiliate marketing|social media campaign|seo services?|marketing freelancer|data entry only|copy typing|virtual assistant)'
-      then 'repeatable_workflow'
-      when lower(concat_ws(' ',ri.title,ri.body)) ~
-        '(logo design|graphic design|video edit|video production|animation|3d model|3d animation|voice ?over|transcription|translation|proofread|article writing|academic|research paper|tutoring|sales representative|cold calling|affiliate marketing|social media campaign|seo services?|marketing freelancer|data entry only|copy typing|virtual assistant)'
-      then 'generic_labor'
-      else 'custom_build'
-    end demand_class
+    lower(concat_ws(' ',ri.title,split_part(coalesce(ri.body,''),E'\nSkills:',1))) narrative
   from public.raw_items ri
   join public.sources src on src.id=ri.source_id
   where src.key='freelancer'
+), classified as (
+  select
+    id,
+    case
+      when narrative !~
+        '(logo design|graphic design|video edit|video production|animation|3d model|3d animation|voice ?over|transcription|translation|proofread|article writing|academic|research paper|tutoring|sales representative|cold calling|affiliate marketing|social media campaign|seo services?|marketing freelancer|copy typing|virtual assistant)'
+       and narrative !~
+        '(job description|we are seeking|we''re seeking|join (our|a) team|long[- ]term role|full[- ]time role|part[- ]time role|consultant role|commission only)'
+       and (
+         narrative ~
+          '(automate|automation|workflow|power automate|zapier|make\.com|n8n|manual process|manually .{0,70}(every|each|repeat|copy|enter|check|send|update)|recurring|repetitive|every (day|week|month|order|time)|each (order|vendor|customer|file)|reminder|notification|keep .{0,60} in sync|synchroni[sz]e|order confirmation|report generation|scheduled report|monitor(ing)? .{0,50}(changes|status|price|data|site)|business metrics|data across .{0,80}(dashboard|report))'
+         or narrative ~
+          '((batch|multiple|dozens|hundreds|thousands|collection) .{0,80}(csv|pdf|document|file|record|image).{0,120}(convert|extract|transfer|process|clean|organize|merge|classify))|((convert|extract|transfer|process|clean|organize|merge|classify).{0,120}(batch|multiple|dozens|hundreds|thousands|collection).{0,80}(csv|pdf|document|file|record|image))'
+         or narrative ~
+          '((connect|integrat|sync).{0,100}(crm|sharepoint|google sheets|whatsapp|shopify|woocommerce|etsy|squarespace|payment|inventory|orders?|leads?).{0,120}(automat|workflow|sync|update|route|confirm|notify|report))|((orders?|inventory|leads?|customer data).{0,100}(sync|automat|route|confirm|update).{0,100}(crm|sharepoint|google sheets|whatsapp|shopify|woocommerce|api))'
+         or narrative ~
+          '(web scraping|data extraction|ocr|data mining).{0,120}(regular|recurring|daily|weekly|monthly|monitor|hundreds|thousands|multiple|list of|batch)'
+       )
+      then 'repeatable_workflow'
+      when narrative ~
+        '(logo design|graphic design|video edit|video production|animation|3d model|3d animation|voice ?over|transcription|translation|proofread|article writing|academic|research paper|tutoring|sales representative|cold calling|affiliate marketing|social media campaign|seo services?|marketing freelancer|copy typing|virtual assistant)'
+      then 'generic_labor'
+      else 'custom_build'
+    end demand_class
+  from base
 )
 update public.raw_items ri
 set raw_payload =
   jsonb_set(
     jsonb_set(
-      jsonb_set(coalesce(ri.raw_payload,'{}'::jsonb),'{collector}','"freelancer-v1.3"'::jsonb,true),
+      jsonb_set(coalesce(ri.raw_payload,'{}'::jsonb),'{collector}','"freelancer-v1.3.1"'::jsonb,true),
       '{evidence_role}','"service_spend"'::jsonb,true
     ),
     '{demand_class}',to_jsonb(c.demand_class),true
