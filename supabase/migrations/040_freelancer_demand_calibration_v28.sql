@@ -263,7 +263,11 @@ with base as (
       when narrative !~
         '(logo design|graphic design|video edit|video production|animation|3d model|3d animation|voice ?over|transcription|translation|proofread|article writing|academic|research paper|tutoring|sales representative|cold calling|affiliate marketing|social media campaign|seo services?|marketing freelancer|copy typing|virtual assistant)'
        and narrative !~
-        '(job description|we are seeking|we''re seeking|join (our|a) team|long[- ]term role|full[- ]time role|part[- ]time role|consultant role|commission only)'
+        '(job description|we are seeking|we''re seeking|we are hiring|we''re hiring|hiring (a|an|freelance)|join (our|a) team|long[- ]term role|full[- ]time role|part[- ]time role|consultant role|commission only|sales agents?|generalist va|virtual assistant|take full ownership of .{0,40}workflow)'
+       and narrative !~
+        '(siemens s7|plc\b|industrial automation line|motor control|firmware|embedded systems?|cobot|robotics hardware|weekly wordpress maintenance|wordpress maintenance|routine website maintenance)'
+       and narrative !~
+        '(automated .{0,40}(ad viewer|ad clicking)|stream .{0,40}(ads?|views?) every day|ticket[- ]buying bot|slot (picking|selection) automation|mass account creation|credential stuffing)'
        and (
          narrative ~
           '(automate|automation|workflow|power automate|zapier|make\.com|n8n|manual process|manually .{0,70}(every|each|repeat|copy|enter|check|send|update)|recurring|repetitive|every (day|week|month|order|time)|each (order|vendor|customer|file)|reminder|notification|keep .{0,60} in sync|synchroni[sz]e|order confirmation|report generation|scheduled report|monitor(ing)? .{0,50}(changes|status|price|data|site)|business metrics|data across .{0,80}(dashboard|report))'
@@ -276,7 +280,7 @@ with base as (
        )
       then 'repeatable_workflow'
       when narrative ~
-        '(logo design|graphic design|video edit|video production|animation|3d model|3d animation|voice ?over|transcription|translation|proofread|article writing|academic|research paper|tutoring|sales representative|cold calling|affiliate marketing|social media campaign|seo services?|marketing freelancer|copy typing|virtual assistant)'
+        '(logo design|graphic design|video edit|video production|animation|3d model|3d animation|voice ?over|transcription|translation|proofread|article writing|academic|research paper|tutoring|sales representative|cold calling|affiliate marketing|social media campaign|seo services?|marketing freelancer|copy typing|virtual assistant|job description|we are seeking|we''re seeking|we are hiring|we''re hiring|hiring (a|an|freelance)|join (our|a) team|long[- ]term role|full[- ]time role|part[- ]time role|consultant role|commission only|sales agents?|generalist va|take full ownership of .{0,40}workflow|siemens s7|plc\b|industrial automation line|motor control|firmware|embedded systems?|cobot|robotics hardware|weekly wordpress maintenance|wordpress maintenance|routine website maintenance|automated .{0,40}(ad viewer|ad clicking)|stream .{0,40}(ads?|views?) every day|ticket[- ]buying bot|slot (picking|selection) automation|mass account creation|credential stuffing)'
       then 'generic_labor'
       else 'custom_build'
     end demand_class
@@ -286,7 +290,7 @@ update public.raw_items ri
 set raw_payload =
   jsonb_set(
     jsonb_set(
-      jsonb_set(coalesce(ri.raw_payload,'{}'::jsonb),'{collector}','"freelancer-v1.3.1"'::jsonb,true),
+      jsonb_set(coalesce(ri.raw_payload,'{}'::jsonb),'{collector}','"freelancer-v1.3.2"'::jsonb,true),
       '{evidence_role}','"service_spend"'::jsonb,true
     ),
     '{demand_class}',to_jsonb(c.demand_class),true
