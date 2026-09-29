@@ -22,8 +22,14 @@ function clean(value: string | null | undefined) {
   return (value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function painReview(text: string) {
-  return /(doesn'?t work|does not work|not working|broken|stopped working|missing|wish|need |cannot|can't|slow|crash|freeze|sync|export|import|automation|workflow|feature|paywall|subscription|expensive|alternative|unusable|bug|fails?|annoying|privacy|permission|login|sign in|lost|deleted)/i.test(text);
+function classifyReview(text: string): "problem_demand" | "market_context" | null {
+  const featureGap = /(missing|wish|need (?:a|an|to|way)|no way|without .* way|would be nice|feature|support for|option to|allow (?:me|us|users)|customi[sz]e|configure|manual|workflow|export|import|alternative|paywall|subscription|too expensive|privacy|permission)/i.test(text);
+  if (featureGap) return "problem_demand";
+
+  const productFailure = /(doesn'?t work|does not work|not working|broken|stopped working|slow|crash|freeze|unusable|bug|fails?|error|blank (?:screen|page)|login fails?|sign in fails?|sync .*error|lost|deleted)/i.test(text);
+  if (productFailure) return "market_context";
+
+  return null;
 }
 
 async function sha256(input: string) {
@@ -47,7 +53,7 @@ async function ensureSource() {
 Deno.serve(async () => {
   const sourceId = await ensureSource();
   const { data: run, error: runError } = await db.from("collection_runs")
-    .insert({ source_id: sourceId, collector: "amo_reviews", status: "running", metadata: { collector_version: "amo-reviews-v1.0" } })
+    .insert({ source_id: sourceId, collector: "amo_reviews", status: "running", metadata: { collector_version: "amo-reviews-v1.1" } })
     .select("id").single();
 
   if (runError) return new Response(JSON.stringify({ ok: false, error: runError.message }), { status: 500 });
@@ -83,6 +89,8 @@ Deno.serve(async () => {
     let seen = 0;
     let inserted = 0;
     let rejectedNoise = 0;
+    let demandReviews = 0;
+    let failureContextReviews = 0;
     const addonStats: Array<{ slug: string; status: number; reviews: number }> = [];
 
     for (const addon of [...addons.values()].slice(0, 18)) {
@@ -99,13 +107,16 @@ Deno.serve(async () => {
         const body = clean(rating.body);
         const score = Number(rating.score ?? rating.rating ?? 0);
         if (!body || ![1,2].includes(score)) continue;
-        if (!painReview(body)) {
+        const evidenceRole = classifyReview(body);
+        if (!evidenceRole) {
           rejectedNoise++;
           continue;
         }
 
         seen++;
         kept++;
+        if (evidenceRole === "problem_demand") demandReviews++;
+        else failureContextReviews++;
         const created = rating.created || new Date().toISOString();
         const title = (addon.name + ": " + body.slice(0, 180)).slice(0, 300);
         const sourceUrl = "https://addons.mozilla.org/firefox/addon/" + addon.slug + "/reviews/";
@@ -125,8 +136,9 @@ Deno.serve(async () => {
             addon_users: addon.users,
             score,
             version: rating.version?.version || null,
-            collector: "amo-reviews-v1.0",
-            evidence_role: "problem_demand",
+            collector: "amo-reviews-v1.1",
+            evidence_role: evidenceRole,
+            review_role: evidenceRole === "problem_demand" ? "feature_or_workflow_gap" : "product_failure",
           },
           content_hash: contentHash,
         }, { onConflict: "source_id,external_id", ignoreDuplicates: true }).select("id").maybeSingle();
@@ -144,17 +156,19 @@ Deno.serve(async () => {
       records_seen: seen,
       records_inserted: inserted,
       metadata: {
-        collector_version: "amo-reviews-v1.0",
+        collector_version: "amo-reviews-v1.1",
         searches,
         addons_checked: addonStats.length,
         addon_stats: addonStats,
         rejected_noise: rejectedNoise,
-        role: "problem_demand",
+        demand_reviews: demandReviews,
+        product_failure_context_reviews: failureContextReviews,
+        role: "mixed_review_evidence",
       },
     }).eq("id", run.id);
     await db.from("sources").update({ last_success_at: new Date().toISOString() }).eq("id", sourceId);
 
-    return new Response(JSON.stringify({ ok: true, seen, inserted, addons: addonStats.length, rejectedNoise, searches }), {
+    return new Response(JSON.stringify({ ok: true, seen, inserted, addons: addonStats.length, rejectedNoise, demandReviews, failureContextReviews, searches }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (e) {
