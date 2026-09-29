@@ -29,10 +29,13 @@ Status updated: 2026-09-28
    - Algora may strengthen an existing independently discovered cluster, but it cannot seed an Algora-only opportunity.
 
 4. **Add missing high-value source classes**
-   - Product/platform changelogs and API releases.
-   - Browser extension/app reviews.
-   - Stronger freelance/job demand sources.
-   - Prioritize sources that add independent pain, spend or timing evidence rather than raw volume.
+   - Status: IN PROGRESS (V2.7).
+   - Product/platform releases: LIVE. Official GitHub Releases API, stable releases by default, strong timing/deprecation/API/auth/security filters, max 3 relevant releases per repository. Stored as `market_context` only and never seeds a problem cluster.
+   - Browser extension reviews: LIVE. Official Mozilla Add-ons v5 search + ratings APIs. Only 1–2★ reviews with text are considered; strong feature/workflow gaps become `problem_demand`, while regressions/product failures stay `market_context`.
+   - Review author identities are not persisted.
+   - Both collectors run daily before normalization.
+   - Stronger freelance/job demand sources: NEXT.
+   - Continue prioritizing independent pain, spend or timing evidence rather than raw volume.
 
 ## Guiding rule
 

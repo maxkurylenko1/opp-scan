@@ -60,6 +60,10 @@ Hacker News evidence is role-aware. Genuine Ask HN pain can be `problem_demand`;
 
 Algora is intentionally treated as corroborating `service_spend`, not primary problem discovery. The collector runs weekly, verifies every listed bounty against the linked live GitHub issue, deactivates closed issues, uses GitHub activity time for recency, and ignores sub-$50 bounties for semantic matching. Algora evidence may attach to an existing cluster but never creates an Algora-only opportunity.
 
+Platform/API release notes are collected from a curated set of official GitHub repositories. Only stable, high-signal releases involving new capabilities, deprecations, migrations, auth/security, APIs or platform changes are retained. They are `market_context` only: useful for timing and incumbent research, never direct user demand.
+
+Firefox add-on reviews are collected through Mozilla's official Add-ons API. The collector keeps only textual 1–2 star reviews, does not persist reviewer identities, and separates strong feature/workflow gaps from ordinary regressions. Feature/workflow gaps can become `problem_demand`; product failures remain `market_context`.
+
 Reddit requires approved authenticated access in production. `radar-daily` supports official Reddit OAuth when `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` and `REDDIT_USER_AGENT` are configured after Reddit approval. There is no unauthenticated JSON/RSS scraping fallback; until approval, Reddit is recorded as `blocked` rather than silently pretending coverage exists.
 
 Avoid brittle scraping when an API, authenticated source or search layer can provide the same evidence.
