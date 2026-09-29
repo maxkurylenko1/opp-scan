@@ -13,7 +13,13 @@ function classifyDemand(title: string, description: string, jobs: string): Deman
     /(logo design|graphic design|video edit|video production|animation|3d model|3d animation|voice ?over|transcription|translation|proofread|article writing|academic|research paper|tutoring|sales representative|cold calling|affiliate marketing|social media campaign|seo services?|marketing freelancer|copy typing|virtual assistant)/i.test(narrative);
 
   const staffingRequest =
-    /(job description|we are seeking|we're seeking|join (our|a) team|long[- ]term role|full[- ]time role|part[- ]time role|consultant role|commission only)/i.test(narrative);
+    /(job description|we are seeking|we're seeking|we are hiring|we're hiring|hiring (?:a|an|freelance)|join (our|a) team|long[- ]term role|full[- ]time role|part[- ]time role|consultant role|commission only|sales agents?|generalist va|virtual assistant|take full ownership of .{0,40}workflow)/i.test(narrative);
+
+  const nonSoftwareOrMaintenance =
+    /(siemens s7|plc\b|industrial automation line|motor control|firmware|embedded systems?|cobot|robotics hardware|weekly wordpress maintenance|wordpress maintenance|routine website maintenance)/i.test(narrative);
+
+  const abusiveAutomation =
+    /(automated .{0,40}(ad viewer|ad clicking)|stream .{0,40}(ads?|views?) every day|ticket[- ]buying bot|slot (?:picking|selection) automation|mass account creation|credential stuffing)/i.test(narrative);
 
   const explicitWorkflow =
     /(automate|automation|workflow|power automate|zapier|make\.com|n8n|manual process|manually .{0,70}(every|each|repeat|copy|enter|check|send|update)|recurring|repetitive|every (day|week|month|order|time)|each (order|vendor|customer|file)|reminder|notification|keep .{0,60} in sync|synchroni[sz]e|order confirmation|report generation|scheduled report|monitor(ing)? .{0,50}(changes|status|price|data|site)|business metrics|data across .{0,80}(dashboard|report))/i.test(narrative);
@@ -30,6 +36,8 @@ function classifyDemand(title: string, description: string, jobs: string): Deman
   const repeatableWorkflow =
     !genericLabor &&
     !staffingRequest &&
+    !nonSoftwareOrMaintenance &&
+    !abusiveAutomation &&
     (explicitWorkflow || batchTransformation || operationalIntegration || dataCollectionWorkflow);
 
   const customBuild =
@@ -37,8 +45,8 @@ function classifyDemand(title: string, description: string, jobs: string): Deman
     || /(web development|mobile app development|firmware development|game development)/i.test(skillText);
 
   if (repeatableWorkflow) return "repeatable_workflow";
-  if (genericLabor) return "generic_labor";
-  if (customBuild || staffingRequest) return "custom_build";
+  if (genericLabor || staffingRequest || nonSoftwareOrMaintenance || abusiveAutomation) return "generic_labor";
+  if (customBuild) return "custom_build";
   return "custom_build";
 }
 
@@ -66,7 +74,7 @@ Deno.serve(async () => {
       source_id: source.id,
       collector: "freelancer",
       status: "running",
-      metadata: { collector_version: "freelancer-v1.3.1" },
+      metadata: { collector_version: "freelancer-v1.3.2" },
     })
     .select("id")
     .single();
@@ -127,7 +135,7 @@ Deno.serve(async () => {
           jobs: p.jobs,
           urgent: p.urgent,
           bid_stats: p.bid_stats,
-          collector: "freelancer-v1.3.1",
+          collector: "freelancer-v1.3.2",
           evidence_role: "service_spend",
           demand_class: demandClass,
           full_description: Boolean(p.description),
@@ -148,7 +156,7 @@ Deno.serve(async () => {
         records_seen: projects.length,
         records_inserted: inserted,
         metadata: {
-          collector_version: "freelancer-v1.3.1",
+          collector_version: "freelancer-v1.3.2",
           role: "service_spend",
           demand_classes: classCounts,
         },
