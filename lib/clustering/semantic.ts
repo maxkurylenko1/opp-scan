@@ -185,6 +185,7 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
       .from("signals")
       .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score,money_signal_type,evidence_role,is_actionable,embedding_model,sources!inner(key,kind)")
       .or("is_actionable.eq.true,evidence_role.eq.market_context")
+      .order("is_actionable", { ascending: false })
       .order("published_at", { ascending: false })
       .limit(500),
     supabase.from("cluster_signals").select("signal_id").eq("assignment_method", ASSIGNMENT),
