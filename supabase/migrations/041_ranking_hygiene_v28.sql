@@ -746,6 +746,22 @@ $function$
 
 revoke execute on function public.radar_snapshot_scan(uuid,integer) from public,anon,authenticated;
 
+-- Re-normalize versioned source data whose raw collection is trustworthy but whose
+-- signal extraction predates the current source-specific gates.
+update public.raw_items ri
+set processed_at=null
+from public.sources src
+where ri.source_id=src.id
+  and (
+    src.key='stackoverflow'
+    or (
+      src.key='github'
+      and coalesce(ri.raw_payload->>'collector','')='github-demand-v1.3'
+    )
+  );
+
+select public.radar_process_pending(1000);
+
 -- Unversioned GitHub collection predates the demand-focused collector and cannot
 -- satisfy the current evidence contract. Preserve it as history, but quarantine it.
 update public.signals s
@@ -755,6 +771,17 @@ from public.raw_items ri
 join public.sources src on src.id=ri.source_id
 where s.raw_item_id=ri.id
   and src.key='github'
+  and coalesce(ri.raw_payload->>'collector','')='';
+
+-- Reddit remains blocked pending approved API access. Old unversioned fallback rows
+-- are preserved for audit/history but cannot contribute to ranking.
+update public.signals s
+set is_actionable=false,
+    extraction_version='legacy-reddit-quarantined-v2.8'
+from public.raw_items ri
+join public.sources src on src.id=ri.source_id
+where s.raw_item_id=ri.id
+  and src.key='reddit'
   and coalesce(ri.raw_payload->>'collector','')='';
 
 -- Links created by older models must not keep non-actionable/context evidence alive.
