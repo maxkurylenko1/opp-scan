@@ -57,28 +57,94 @@ function tagValue(block: string, tag: string) {
   return match?.[1] || "";
 }
 
+function hnQuestionDemand(text: string) {
+  return explicitProblemIntent(text)
+    || directProductIntent(text)
+    || /(ask hn|what do you use|what are you using|which (?:tool|service|app)|recommend(?:ation|ations)?|is there (?:a|an)|does anyone know|how do you (?:handle|manage|solve|automate)|any good (?:tool|service|alternative)|looking for|alternative to|struggling with|pain point)/i.test(text);
+}
+
+function hnLaunchRelevant(text: string) {
+  return /(tool|software|saas|api|sdk|automation|workflow|developer|devtool|browser|extension|ai|agent|llm|creator|video|crm|ecommerce|game|security|monitoring|observability|database|data|search|deploy|hosting|billing|invoice|marketing|analytics|productivity)/i.test(text);
+}
+
+async function fetchHNByTag(tag: "ask_hn" | "show_hn", since: number, hitsPerPage: number) {
+  const url = `https://hn.algolia.com/api/v1/search_by_date?tags=${tag}&hitsPerPage=${hitsPerPage}&numericFilters=created_at_i>${since}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HN ${tag} ${res.status}`);
+  const json = await res.json();
+  return json.hits || [];
+}
+
 async function collectHN(): Promise<Raw[]> {
   const since = Math.floor((Date.now() - 7 * 86400_000) / 1000);
-  const url = `https://hn.algolia.com/api/v1/search_by_date?tags=story&hitsPerPage=100&numericFilters=created_at_i>${since}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HN ${res.status}`);
-  const json = await res.json();
-  const signal = /(manual|manually|workflow|automation|pain|problem|looking for|alternative|wish there|need a|hate|tedious|time-consuming|expensive|pay for|pricing|subscription|hire)/i;
-  const noise = /(digest|newsletter|top \d+|roundup|weekly links)/i;
-  return (json.hits || [])
-    .filter((h: any) => signal.test(`${h.title || ""} ${h.story_text || ""}`) && !noise.test(h.title || ""))
-    .slice(0, 35)
-    .map((h: any) => ({
+  const [askHits, showHits] = await Promise.all([
+    fetchHNByTag("ask_hn", since, 80),
+    fetchHNByTag("show_hn", since, 80),
+  ]);
+
+  const rows: Raw[] = [];
+
+  for (const h of askHits) {
+    const title = h.title || "Untitled";
+    const body = decodeHtml(h.story_text);
+    const text = `${title}\n${body}`;
+    if (!hnQuestionDemand(text)) continue;
+
+    rows.push({
       sourceKey: "hackernews",
       sourceKind: "hackernews",
       externalId: String(h.objectID),
       sourceUrl: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
       author: h.author || null,
-      title: h.title || "Untitled",
-      body: decodeHtml(h.story_text),
+      title,
+      body,
       publishedAt: h.created_at,
-      rawPayload: h,
-    }));
+      rawPayload: {
+        ...h,
+        collector: "hn-v1.4",
+        evidence_role: "problem_demand",
+        classification_hints: {
+          ask_hn: true,
+          show_hn: false,
+          explicit_problem: explicitProblemIntent(text),
+          direct_product_intent: directProductIntent(text),
+        },
+      },
+    });
+  }
+
+  for (const h of showHits) {
+    const title = h.title || "Untitled";
+    const body = decodeHtml(h.story_text);
+    const text = `${title}\n${body}`;
+    if (!hnLaunchRelevant(text)) continue;
+
+    rows.push({
+      sourceKey: "hackernews",
+      sourceKind: "hackernews",
+      externalId: String(h.objectID),
+      sourceUrl: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
+      author: h.author || null,
+      title,
+      body,
+      publishedAt: h.created_at,
+      rawPayload: {
+        ...h,
+        collector: "hn-v1.4",
+        evidence_role: "launch_competitor",
+        classification_hints: {
+          ask_hn: false,
+          show_hn: true,
+          founder_claimed_problem: explicitProblemIntent(text),
+          direct_product_intent: false,
+        },
+      },
+    });
+  }
+
+  return [...new Map(rows.map((x) => [x.externalId, x])).values()]
+    .sort((a,b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
+    .slice(0, 80);
 }
 
 
