@@ -48,7 +48,7 @@ export async function getDashboardData() {
   ] = await Promise.all([
     supabase.from("signals").select("*", { count: "exact", head: true }),
     supabase.from("opportunity_themes").select("*", { count: "exact", head: true }).eq("theme_version", "theme-v1.0").neq("status", "killed"),
-    supabase.from("problem_clusters").select("*", { count: "exact", head: true }).eq("clustering_version", "semantic-v1.1").neq("status", "killed"),
+    supabase.from("problem_clusters").select("*", { count: "exact", head: true }).eq("clustering_version", "semantic-v1.2").neq("status", "killed"),
     supabase.from("problem_clusters").select("*", { count: "exact", head: true }).eq("clustering_version", "heuristic-v1").neq("status", "killed"),
     supabase.from("radar_scans")
       .select("id,status,started_at,finished_at,opportunities_snapshot_count,metadata")
@@ -61,7 +61,7 @@ export async function getDashboardData() {
   if (scanError) throw scanError;
 
   const hasSemantic = (semanticClusterCount || 0) > 0;
-  const clusterMode = hasSemantic ? "semantic-v1.1" : "heuristic-v1";
+  const clusterMode = hasSemantic ? "semantic-v1.2" : "heuristic-v1";
 
   const markets: Record<"us" | "eu", OpportunityView[]> = { us: [], eu: [] };
 
