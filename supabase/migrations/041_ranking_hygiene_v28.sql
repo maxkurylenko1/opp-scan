@@ -250,7 +250,7 @@ $function$
 
 revoke execute on function public.radar_process_pending(integer) from public,anon,authenticated;
 
-CREATE OR REPLACE FUNCTION public.match_problem_clusters(query_embedding vector, match_threshold double precision DEFAULT 0.78, match_count integer DEFAULT 8, version_filter text DEFAULT 'semantic-v1.1'::text)
+CREATE OR REPLACE FUNCTION public.match_problem_clusters(query_embedding vector, match_threshold double precision DEFAULT 0.78, match_count integer DEFAULT 8, version_filter text DEFAULT 'semantic-v1.2'::text)
  RETURNS TABLE(id uuid, slug text, name text, category text, similarity double precision)
  LANGUAGE sql
  STABLE
@@ -295,10 +295,10 @@ begin
     select pc.id,pc.name,pc.category,pc.embedding,
            array_agg(distinct src.kind order by src.kind) as platforms
     from public.problem_clusters pc
-    join public.cluster_signals cs on cs.cluster_id=pc.id and cs.assignment_method='semantic-v1.1'
+    join public.cluster_signals cs on cs.cluster_id=pc.id and cs.assignment_method='semantic-v1.2'
     join public.signals s on s.id=cs.signal_id
     join public.sources src on src.id=s.source_id
-    where pc.clustering_version='semantic-v1.1'
+    where pc.clustering_version='semantic-v1.2'
       and pc.embedding is not null
       and pc.status <> 'killed'
       and s.is_actionable
@@ -380,7 +380,7 @@ begin
              count(distinct s.id) filter(where s.money_signal_type is not null and s.money_signal_type<>'none')::int money_signal_count
       from public.cluster_signals cs
       join public.signals s on s.id=cs.signal_id
-      where cs.cluster_id=pc.id and cs.assignment_method='semantic-v1.1'
+      where cs.cluster_id=pc.id and cs.assignment_method='semantic-v1.2'
     ) cm on true
     order by tc.root_id,(coalesce(cm.money_signal_count,0)*3 + coalesce(cm.signal_count,0)) desc,pc.name
   )
@@ -452,7 +452,7 @@ begin
     now()
   from public.opportunity_themes ot
   join public.theme_clusters tc on tc.theme_id=ot.id and tc.assignment_method='theme-v1.0'
-  join public.cluster_signals cs on cs.cluster_id=tc.cluster_id and cs.assignment_method='semantic-v1.1'
+  join public.cluster_signals cs on cs.cluster_id=tc.cluster_id and cs.assignment_method='semantic-v1.2'
   join public.signals s on s.id=cs.signal_id
   join public.sources src on src.id=s.source_id
   left join public.raw_items ri on ri.id=s.raw_item_id
@@ -487,7 +487,7 @@ declare
   v_count integer:=0;
   v_has_semantic boolean;
 begin
-  select exists(select 1 from public.cluster_signals where assignment_method='semantic-v1.1') into v_has_semantic;
+  select exists(select 1 from public.cluster_signals where assignment_method='semantic-v1.2') into v_has_semantic;
 
   -- Every refresh starts by retiring non-manual exact candidates. Current candidates
   -- are reactivated below; candidates that lost valid evidence remain Scouts/watchers.
@@ -534,7 +534,7 @@ begin
         and s.is_actionable
         and s.evidence_role in ('problem_demand','service_spend')
         and (
-          (v_has_semantic and pc.clustering_version='semantic-v1.1' and cs.assignment_method='semantic-v1.1')
+          (v_has_semantic and pc.clustering_version='semantic-v1.2' and cs.assignment_method='semantic-v1.2')
           or
           (not v_has_semantic and pc.clustering_version='heuristic-v1' and cs.assignment_method='heuristic-v1')
         )
@@ -770,19 +770,435 @@ where cs.signal_id=s.id
     or s.evidence_role not in ('problem_demand','service_spend')
   );
 
--- Prevent dead semantic clusters from receiving new matches.
-update public.problem_clusters pc
+-- V1.1 clusters are historical after the precision threshold change.
+update public.problem_clusters
 set status='killed',updated_at=now()
-where pc.clustering_version='semantic-v1.1'
-  and pc.status<>'killed'
-  and not exists (
-    select 1
-    from public.cluster_signals cs
-    join public.signals s on s.id=cs.signal_id
-    where cs.cluster_id=pc.id
-      and cs.assignment_method='semantic-v1.1'
-      and s.is_actionable
-      and s.evidence_role in ('problem_demand','service_spend')
-  );
+where clustering_version='semantic-v1.1'
+  and status<>'killed';
 
+CREATE OR REPLACE FUNCTION public.refresh_semantic_cluster_metrics(metric_day date DEFAULT CURRENT_DATE)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+declare
+  affected integer;
+begin
+  insert into public.cluster_metrics (
+    cluster_id, metric_date, window_days, signal_count, independent_source_count,
+    money_signal_count, unique_author_count, avg_pain, avg_purchase_intent,
+    weighted_signal_strength, growth_pct
+  )
+  select
+    pc.id,
+    metric_day,
+    7,
+    count(distinct s.id)::int,
+    count(distinct src.kind)::int,
+    count(distinct s.id) filter (where s.money_signal_type <> 'none')::int,
+    count(distinct nullif(ri.author, ''))::int,
+    coalesce(avg(s.pain_score), 0)::numeric(5,2),
+    coalesce(avg(s.purchase_intent_score), 0)::numeric(5,2),
+    coalesce(sum(
+      (s.pain_score * 0.35) +
+      (s.purchase_intent_score * 0.30) +
+      (s.evidence_quality_score * 0.20) +
+      (s.urgency_score * 0.15)
+    ), 0)::numeric(7,3),
+    case
+      when prev.signal_count is null or prev.signal_count = 0 then null
+      else round(((count(distinct s.id)::numeric - prev.signal_count) / prev.signal_count) * 100, 2)
+    end
+  from public.problem_clusters pc
+  join public.cluster_signals cs on cs.cluster_id = pc.id and cs.assignment_method = 'semantic-v1.2'
+  join public.signals s on s.id = cs.signal_id
+  join public.sources src on src.id = s.source_id
+  left join public.raw_items ri on ri.id = s.raw_item_id
+  left join lateral (
+    select cm.signal_count
+    from public.cluster_metrics cm
+    where cm.cluster_id = pc.id
+      and cm.metric_date < metric_day
+      and cm.window_days = 7
+    order by cm.metric_date desc
+    limit 1
+  ) prev on true
+  where pc.clustering_version = 'semantic-v1.2'
+    and s.published_at >= (metric_day::timestamptz - interval '7 days')
+    and s.published_at < ((metric_day + 1)::timestamptz)
+  group by pc.id, prev.signal_count
+  on conflict (cluster_id, metric_date, window_days)
+  do update set
+    signal_count = excluded.signal_count,
+    independent_source_count = excluded.independent_source_count,
+    money_signal_count = excluded.money_signal_count,
+    unique_author_count = excluded.unique_author_count,
+    avg_pain = excluded.avg_pain,
+    avg_purchase_intent = excluded.avg_purchase_intent,
+    weighted_signal_strength = excluded.weighted_signal_strength,
+    growth_pct = excluded.growth_pct;
+
+  get diagnostics affected = row_count;
+  return affected;
+end;
+$function$
+;
+
+revoke execute on function public.refresh_semantic_cluster_metrics(date) from public,anon,authenticated;
+
+CREATE OR REPLACE FUNCTION public.radar_refresh_evidence_metrics()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_count integer := 0;
+begin
+  with classified as (
+    select
+      ot.id as theme_id,
+      s.id as signal_id,
+      s.published_at,
+      s.evidence_quality_score,
+      src.key as source_key,
+      src.kind as source_kind,
+      nullif(ri.author,'') as author,
+      ri.id as raw_item_id,
+      coalesce(s.evidence_role,'problem_demand') as evidence_role,
+      lower(concat_ws(' ',ri.title,ri.body,s.problem,s.evidence_excerpt)) as txt,
+      case
+        when coalesce(s.evidence_role,'problem_demand')='launch_competitor' then true
+        when src.kind <> 'marketplace'
+         and lower(concat_ws(' ',ri.title,ri.body,s.problem)) ~
+           '(\\bi built\\b|\\bi made\\b|\\bwe built\\b|\\bwe made\\b|\\bwe launched\\b|\\blaunching my\\b|\\bmy saas\\b|\\bmy app\\b|\\bshow hn\\b|\\bintroducing our\\b)'
+        then true else false
+      end as self_promo,
+      case
+        when coalesce(s.evidence_role,'problem_demand')='service_spend' then true
+        when src.kind = 'marketplace' then true
+        when s.money_signal_type in ('job_post','bounty') then true
+        else false
+      end as service_spend,
+      case
+        when coalesce(s.evidence_role,'problem_demand')='problem_demand'
+         and src.kind <> 'marketplace'
+         and lower(concat_ws(' ',ri.title,ri.body,s.problem,s.evidence_excerpt)) ~
+           '(would pay|willing to pay|pay for (a|an|this|something)|looking for (a|an|some) (tool|app|service|alternative)|need (a|an) (tool|app|service)|any (tool|app|service).*(for|that)|subscription.*(need|worth|looking))'
+         and not (
+           lower(concat_ws(' ',ri.title,ri.body,s.problem)) ~
+           '(\\bi built\\b|\\bi made\\b|\\bwe built\\b|\\bwe launched\\b|\\bmy saas\\b|\\bmy app\\b|\\bshow hn\\b)'
+         )
+        then true else false
+      end as direct_product_purchase
+    from public.opportunity_themes ot
+    join public.theme_clusters tc on tc.theme_id=ot.id and tc.assignment_method='theme-v1.0'
+    join public.cluster_signals cs on cs.cluster_id=tc.cluster_id and cs.assignment_method='semantic-v1.2'
+    join public.signals s on s.id=cs.signal_id
+    join public.sources src on src.id=s.source_id
+    left join public.raw_items ri on ri.id=s.raw_item_id
+    where ot.theme_version='theme-v1.0' and ot.status<>'killed'
+  ), agg as (
+    select
+      theme_id,
+      count(distinct source_key) filter(where evidence_role in ('problem_demand','service_spend'))::int as source_keys,
+      count(distinct coalesce(raw_item_id::text,signal_id::text))
+        filter(where evidence_role in ('problem_demand','service_spend'))::int as evidence_units,
+      count(distinct signal_id)
+        filter(where evidence_role='problem_demand' and not self_promo)::int as organic_problem,
+      count(distinct signal_id) filter(where service_spend)::int as service_spend,
+      count(distinct signal_id) filter(where direct_product_purchase)::int as direct_purchase,
+      count(distinct signal_id) filter(where self_promo)::int as self_promo,
+      count(distinct signal_id) filter(where evidence_role='launch_competitor')::int as launches,
+      count(distinct signal_id) filter(where evidence_role='market_context')::int as market_context,
+      count(distinct coalesce(raw_item_id::text,signal_id::text))
+        filter(where published_at>=now()-interval '7 days' and evidence_role in ('problem_demand','service_spend'))::int as recent_units
+    from classified
+    group by theme_id
+  )
+  update public.theme_metrics tm
+  set independent_source_key_count=coalesce(a.source_keys,0),
+      evidence_unit_count=coalesce(a.evidence_units,0),
+      organic_problem_signal_count=coalesce(a.organic_problem,0),
+      service_spend_signal_count=coalesce(a.service_spend,0),
+      direct_product_purchase_signal_count=coalesce(a.direct_purchase,0),
+      self_promo_signal_count=coalesce(a.self_promo,0),
+      launch_competitor_signal_count=coalesce(a.launches,0),
+      market_context_signal_count=coalesce(a.market_context,0),
+      recent_evidence_unit_count=coalesce(a.recent_units,0),
+      updated_at=now()
+  from agg a
+  where tm.theme_id=a.theme_id;
+
+  get diagnostics v_count=row_count;
+  return v_count;
+end;
+$function$
+;
+
+revoke execute on function public.radar_refresh_evidence_metrics() from public,anon,authenticated;
+
+CREATE OR REPLACE FUNCTION public.radar_weekly_rank()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  r record;
+  v_opp_id uuid;
+  v_count integer:=0;
+  v_top uuid[]:='{}';
+  v_watch uuid[]:='{}';
+  v_week_start date := (current_date - ((extract(isodow from current_date)::int)-1));
+  v_week_end date := v_week_start + 6;
+  v_has_semantic boolean;
+begin
+  select exists(select 1 from public.cluster_signals where assignment_method='semantic-v1.2') into v_has_semantic;
+
+  for r in
+    with stats as (
+      select pc.id cluster_id,pc.name,pc.summary,pc.target_customer,pc.category,
+        count(distinct s.id)::int signal_count,
+        count(distinct coalesce(ri.id::text,s.id::text))::int evidence_unit_count,
+        count(distinct src.key)::int source_key_count,
+        count(distinct nullif(ri.author,''))::int author_count,
+        avg(s.pain_score)::numeric pain,
+        avg(s.evidence_quality_score)::numeric evidence,
+        count(distinct s.id) filter(where src.kind='marketplace' or s.money_signal_type in ('job_post','bounty'))::int service_spend_count,
+        count(distinct s.id) filter(
+          where src.kind<>'marketplace'
+            and lower(concat_ws(' ',ri.title,ri.body,s.problem,s.evidence_excerpt)) ~
+              '(would pay|willing to pay|pay for (a|an|this|something)|looking for (a|an|some) (tool|app|service|alternative)|need (a|an) (tool|app|service))'
+            and lower(concat_ws(' ',ri.title,ri.body,s.problem)) !~
+              '(\bi built\b|\bi made\b|\bwe built\b|\bwe launched\b|\bmy saas\b|\bmy app\b|\bshow hn\b)'
+        )::int direct_purchase_count,
+        count(distinct s.id) filter(
+          where src.kind<>'marketplace' and lower(concat_ws(' ',ri.title,ri.body,s.problem)) ~
+            '(\bi built\b|\bi made\b|\bwe built\b|\bwe launched\b|\bmy saas\b|\bmy app\b|\bshow hn\b)'
+        )::int self_promo_count,
+        count(distinct coalesce(ri.id::text,s.id::text))
+          filter(where s.published_at>=now()-interval '7 days')::int recent_count
+      from public.problem_clusters pc
+      join public.cluster_signals cs on cs.cluster_id=pc.id
+      join public.signals s on s.id=cs.signal_id
+      join public.sources src on src.id=s.source_id
+      left join public.raw_items ri on ri.id=s.raw_item_id
+      where pc.status<>'killed'
+        and ((v_has_semantic and pc.clustering_version='semantic-v1.2' and cs.assignment_method='semantic-v1.2')
+          or (not v_has_semantic and pc.clustering_version='heuristic-v1' and cs.assignment_method='heuristic-v1'))
+      group by pc.id,pc.name,pc.summary,pc.target_customer,pc.category
+    ), features as (
+      select *,
+        least(10,greatest(0,ln(greatest(evidence_unit_count,1)+1)/ln(2)*2.6))::numeric freq,
+        least(10,greatest(0,recent_count::numeric/greatest(evidence_unit_count,1)*10))::numeric recency,
+        case when category in ('developer-tool','browser-extension') then 8 else 6 end::numeric reach,
+        case when category in ('developer-tool','browser-extension','automation','ai-tooling') then 8 else 6 end::numeric buildability,
+        case when category in ('developer-tool','automation','ai-tooling','ecommerce') then 7 else 5 end::numeric recurring,
+        least(10,service_spend_count::numeric + direct_purchase_count::numeric*1.5) calibrated_wtp,
+        greatest(0,least(100,
+          (least(source_key_count,4)::numeric/4*25) +
+          (least(evidence_unit_count,6)::numeric/6*20) +
+          (least(author_count+least(service_spend_count,2),5)::numeric/5*15) +
+          (evidence/10*20) +
+          (least(recent_count,4)::numeric/4*20) -
+          least(20,self_promo_count::numeric/greatest(evidence_unit_count,1)*35)
+        )) problem_conf,
+        least(40,
+          (least(direct_purchase_count,3)::numeric/3*20) +
+          (least(service_spend_count,4)::numeric/4*10)
+        ) product_conf
+      from stats
+      where evidence_unit_count>=2 or source_key_count>=2 or service_spend_count>=2
+    ), scored as (
+      select *,
+        greatest(0,least(100,round((
+          pain*20 + calibrated_wtp*20 + reach*15 + freq*10 + recency*10 +
+          5*10 + buildability*10 + recurring*5
+        )/10,2))) score
+      from features
+    )
+    select *,
+      round(problem_conf*0.55+product_conf*0.45,2) overall_conf,
+      case when score>=48 and problem_conf>=48 then 'research' else 'scout' end decision
+    from scored
+    order by
+      case when score>=48 and problem_conf>=48 then 2 else 1 end desc,
+      (score*(0.55+0.45*problem_conf/100)) desc
+    limit 10
+  loop
+    insert into public.opportunities(
+      cluster_id,theme_id,title,thesis,target_customer,pain_summary,why_now,mvp_scope,
+      acquisition_channel,pricing_hypothesis,time_to_validation_days,time_to_money_days,status,
+      opportunity_score,confidence_score,problem_confidence_score,product_confidence_score,decision_tier,
+      biggest_risk,validation_experiment,score_version,generated_at,updated_at
+    ) values (
+      r.cluster_id,null,r.name,
+      format('Early exact-problem signal: %s evidence unit(s) across %s source(s).',r.evidence_unit_count,r.source_key_count),
+      r.target_customer,r.summary,
+      format('Problem confidence %s%%; product confidence is capped because market/product-gap research is not available.',round(r.problem_conf,0)),
+      'Do not build a full product from this exact cluster; first find repeated adjacent evidence or validate manually.',
+      'Source communities and direct outreach',
+      case when r.service_spend_count>0 then 'Service spend exists, but recurring product pricing is unproven.' else 'No recurring pricing assumption yet.' end,
+      7,21,'research',
+      r.score,r.overall_conf,r.problem_conf,r.product_conf,r.decision,
+      'This is an early exact-problem candidate without product-gap research.',
+      'Interview or manually serve users first; promotion to validation requires a broader theme and market research.',
+      'exact-v2.1',now(),now()
+    )
+    on conflict(cluster_id) do update set
+      title=excluded.title,thesis=excluded.thesis,target_customer=excluded.target_customer,pain_summary=excluded.pain_summary,
+      why_now=excluded.why_now,opportunity_score=excluded.opportunity_score,confidence_score=excluded.confidence_score,
+      problem_confidence_score=excluded.problem_confidence_score,product_confidence_score=excluded.product_confidence_score,
+      decision_tier=excluded.decision_tier,biggest_risk=excluded.biggest_risk,score_version=excluded.score_version,
+      status=case when public.opportunities.status in ('build','winner') then public.opportunities.status else excluded.status end,
+      generated_at=now(),updated_at=now()
+    returning id into v_opp_id;
+
+    v_count:=v_count+1;
+    if r.decision='research' and array_length(v_top,1) is distinct from 5 then
+      v_top:=array_append(v_top,v_opp_id);
+    elsif array_length(v_watch,1) is distinct from 3 then
+      v_watch:=array_append(v_watch,v_opp_id);
+    end if;
+  end loop;
+
+  insert into public.weekly_reports(week_start,week_end,generated_at,summary,top_opportunity_ids,watchlist_opportunity_ids,changes)
+  values(v_week_start,v_week_end,now(),
+    format('Generated %s conservative exact-cluster candidates; no exact cluster is auto-promoted to validation.',v_count),
+    v_top,v_watch,jsonb_build_object('generated',v_count,'mode','exact-v2.1'))
+  on conflict(week_start) do update set
+    week_end=excluded.week_end,generated_at=excluded.generated_at,summary=excluded.summary,
+    top_opportunity_ids=excluded.top_opportunity_ids,watchlist_opportunity_ids=excluded.watchlist_opportunity_ids,changes=excluded.changes;
+  return v_count;
+end;
+$function$
+;
+
+revoke execute on function public.radar_weekly_rank() from public,anon,authenticated;
+
+-- Rebuild the subset that already has embeddings so V1.2 can be verified immediately.
+-- Signals without embeddings are picked up by the normal Vercel recluster job.
+create or replace function public.radar_recluster_existing_embeddings_v12()
+returns jsonb
+language plpgsql
+security definer
+set search_path=public,extensions
+as $recluster$
+declare
+  r record;
+  v_cluster_id uuid;
+  v_similarity double precision;
+  v_created integer:=0;
+  v_assigned integer:=0;
+  v_skipped integer:=0;
+begin
+  delete from public.cluster_signals where assignment_method='semantic-v1.2';
+  delete from public.problem_clusters
+  where clustering_version='semantic-v1.2'
+    and not exists (
+      select 1 from public.opportunities o
+      where o.cluster_id=problem_clusters.id and o.status in ('build','winner')
+    );
+
+  for r in
+    select
+      s.id,s.published_at,s.persona,s.category,s.problem,s.embedding,
+      s.evidence_quality_score,
+      src.key source_key,src.kind source_kind
+    from public.signals s
+    join public.sources src on src.id=s.source_id
+    where s.is_actionable
+      and s.evidence_role in ('problem_demand','service_spend')
+      and s.embedding is not null
+    order by s.evidence_quality_score desc,s.published_at desc,s.id
+  loop
+    v_cluster_id:=null;
+    v_similarity:=null;
+
+    select pc.id,(1-(pc.embedding <=> r.embedding))::double precision
+    into v_cluster_id,v_similarity
+    from public.problem_clusters pc
+    where pc.clustering_version='semantic-v1.2'
+      and pc.status<>'killed'
+      and pc.embedding is not null
+      and (
+        (
+          r.source_kind='marketplace'
+          and (
+            (1-(pc.embedding <=> r.embedding)) >= 0.86
+            or (
+              pc.category=r.category
+              and (1-(pc.embedding <=> r.embedding)) >= 0.78
+              and public.theme_tokens(pc.name) && public.theme_tokens(r.problem)
+            )
+          )
+        )
+        or
+        (
+          r.source_kind<>'marketplace'
+          and (
+            (1-(pc.embedding <=> r.embedding)) >= 0.82
+            or (
+              pc.category=r.category
+              and (1-(pc.embedding <=> r.embedding)) >= 0.72
+              and public.theme_tokens(pc.name) && public.theme_tokens(r.problem)
+            )
+          )
+        )
+      )
+    order by pc.embedding <=> r.embedding
+    limit 1;
+
+    if v_cluster_id is null then
+      if r.source_key='algora' then
+        v_skipped:=v_skipped+1;
+        continue;
+      end if;
+
+      insert into public.problem_clusters(
+        slug,name,summary,target_customer,category,status,
+        first_seen_at,last_seen_at,embedding,clustering_version
+      ) values (
+        'semantic-v12-'||r.id::text,
+        left(r.problem,180),
+        r.problem,
+        coalesce(r.persona,'Unknown'),
+        coalesce(r.category,'other'),
+        'watching',
+        coalesce(r.published_at,now()),
+        coalesce(r.published_at,now()),
+        r.embedding,
+        'semantic-v1.2'
+      )
+      returning id into v_cluster_id;
+      v_similarity:=1;
+      v_created:=v_created+1;
+    else
+      update public.problem_clusters
+      set last_seen_at=greatest(last_seen_at,coalesce(r.published_at,now())),
+          updated_at=now()
+      where id=v_cluster_id;
+    end if;
+
+    insert into public.cluster_signals(cluster_id,signal_id,similarity,assignment_method)
+    values(v_cluster_id,r.id,v_similarity,'semantic-v1.2')
+    on conflict(cluster_id,signal_id) do update
+      set similarity=excluded.similarity,assignment_method=excluded.assignment_method;
+    v_assigned:=v_assigned+1;
+  end loop;
+
+  perform public.refresh_semantic_cluster_metrics();
+
+  return jsonb_build_object(
+    'created',v_created,
+    'assigned',v_assigned,
+    'skipped',v_skipped
+  );
+end;
+$recluster$;
+
+revoke execute on function public.radar_recluster_existing_embeddings_v12() from public,anon,authenticated;
+
+select public.radar_recluster_existing_embeddings_v12();
 select public.radar_refresh_and_rank();
