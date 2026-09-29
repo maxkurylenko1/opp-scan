@@ -256,41 +256,68 @@ with base as (
   from public.raw_items ri
   join public.sources src on src.id=ri.source_id
   where src.key='freelancer'
+), features as (
+  select
+    id,
+    narrative,
+    narrative ~
+      '(logo design|graphic design|video edit|video production|animation|3d model|3d animation|voice ?over|transcription|translation|proofread|article writing|academic|research paper|tutoring|lessons?|trainer|instructor|resume|curriculum vitae|story writer|creative writing|copywriter|email marketer|email marketing|sales closer|sales partner|sales representative|cold calling|affiliate marketing|social media campaign|seo services?|marketing freelancer|copy typing|virtual assistant|discord (server )?(builder|setup))'
+      as generic_labor,
+    narrative ~
+      '(job description|we are seeking|we''re seeking|we are hiring|we''re hiring|hiring (a|an|freelance)|join (our|a) team|long[- ]term role|full[- ]time role|part[- ]time role|consultant role|commission[- ]based|commission only|independent contractor|sales agents?|generalist va|virtual assistant|take full ownership of .{0,40}workflow|(developer|specialist|expert|partner|assistant|consultant).{0,25}(required|needed))'
+      as staffing_request,
+    narrative ~
+      '(siemens s7|(^|[^a-z])plc([^a-z]|$)|industrial automation line|motor control|firmware|embedded systems?|cobot|robotics hardware|weekly wordpress maintenance|wordpress maintenance|routine website maintenance)'
+      as nonsoftware_or_maintenance,
+    narrative ~
+      '(automated .{0,40}(ad viewer|ad clicking)|stream .{0,40}(ads?|views?) every day|ticket[- ]buying bot|slot (picking|selection) automation|mass account creation|credential stuffing)'
+      as abusive_automation,
+    narrative ~
+      '(manual process|manually .{0,70}(every|each|repeat|copy|enter|check|send|update)|recurring|repetitive|every (day|week|month|order|time)|each (order|vendor|customer|file)|routine workflows?|day[- ]to[- ]day .{0,50}(manual|work|process)|reminder|notification|keep .{0,60} in sync|synchroni[sz]e|order confirmation|report generation|scheduled report|monitor(ing)? .{0,50}(changes|status|price|data|site)|business metrics|data across .{0,80}(dashboard|report))'
+      as strong_operational_pain,
+    narrative ~
+      '((batch|multiple|dozens|hundreds|thousands|collection) .{0,80}(csv|pdf|document|file|record|image).{0,120}(convert|extract|transfer|process|clean|organize|merge|classify|copy|type))|((convert|extract|transfer|process|clean|organize|merge|classify).{0,120}(batch|multiple|dozens|hundreds|thousands|collection).{0,80}(csv|pdf|document|file|record|image))'
+      as batch_transformation,
+    narrative ~
+      '((connect|integrat|sync).{0,100}(crm|sharepoint|google sheets|whatsapp|shopify|woocommerce|etsy|squarespace|payment|inventory|orders?|leads?).{0,120}(automat|workflow|sync|update|route|confirm|notify|report))|((orders?|inventory|leads?|customer data).{0,100}(sync|automat|route|confirm|update).{0,100}(crm|sharepoint|google sheets|whatsapp|shopify|woocommerce|api))'
+      as operational_integration,
+    narrative ~
+      '(automate|automation|power automate|zapier|make\.com|n8n|workflow automation|ai workflow)'
+      as automation_pain,
+    narrative ~
+      '(web scraping|data extraction|ocr|data mining).{0,120}(regular|recurring|daily|weekly|monthly|monitor|hundreds|thousands|multiple|list of|batch)'
+      as data_collection_workflow,
+    narrative ~
+      '((build|develop|create|complete|commission).{0,50}(website|web app|mobile app|app([^a-z]|$)|platform|mvp|desktop app|browser extension|bot([^a-z]|$)|server([^a-z]|$)|system([^a-z]|$))|((website|web app|mobile app|platform|mvp|desktop app|browser extension|bot) (development|developer|build)))'
+      as explicit_product_commission
+  from base
 ), classified as (
   select
     id,
     case
-      when narrative !~
-        '(logo design|graphic design|video edit|video production|animation|3d model|3d animation|voice ?over|transcription|translation|proofread|article writing|academic|research paper|tutoring|sales representative|cold calling|affiliate marketing|social media campaign|seo services?|marketing freelancer|copy typing|virtual assistant)'
-       and narrative !~
-        '(job description|we are seeking|we''re seeking|we are hiring|we''re hiring|hiring (a|an|freelance)|join (our|a) team|long[- ]term role|full[- ]time role|part[- ]time role|consultant role|commission only|sales agents?|generalist va|virtual assistant|take full ownership of .{0,40}workflow)'
-       and narrative !~
-        '(siemens s7|plc\b|industrial automation line|motor control|firmware|embedded systems?|cobot|robotics hardware|weekly wordpress maintenance|wordpress maintenance|routine website maintenance)'
-       and narrative !~
-        '(automated .{0,40}(ad viewer|ad clicking)|stream .{0,40}(ads?|views?) every day|ticket[- ]buying bot|slot (picking|selection) automation|mass account creation|credential stuffing)'
+      when not generic_labor
+       and not staffing_request
+       and not nonsoftware_or_maintenance
+       and not abusive_automation
        and (
-         narrative ~
-          '(automate|automation|workflow|power automate|zapier|make\.com|n8n|manual process|manually .{0,70}(every|each|repeat|copy|enter|check|send|update)|recurring|repetitive|every (day|week|month|order|time)|each (order|vendor|customer|file)|reminder|notification|keep .{0,60} in sync|synchroni[sz]e|order confirmation|report generation|scheduled report|monitor(ing)? .{0,50}(changes|status|price|data|site)|business metrics|data across .{0,80}(dashboard|report))'
-         or narrative ~
-          '((batch|multiple|dozens|hundreds|thousands|collection) .{0,80}(csv|pdf|document|file|record|image).{0,120}(convert|extract|transfer|process|clean|organize|merge|classify))|((convert|extract|transfer|process|clean|organize|merge|classify).{0,120}(batch|multiple|dozens|hundreds|thousands|collection).{0,80}(csv|pdf|document|file|record|image))'
-         or narrative ~
-          '((connect|integrat|sync).{0,100}(crm|sharepoint|google sheets|whatsapp|shopify|woocommerce|etsy|squarespace|payment|inventory|orders?|leads?).{0,120}(automat|workflow|sync|update|route|confirm|notify|report))|((orders?|inventory|leads?|customer data).{0,100}(sync|automat|route|confirm|update).{0,100}(crm|sharepoint|google sheets|whatsapp|shopify|woocommerce|api))'
-         or narrative ~
-          '(web scraping|data extraction|ocr|data mining).{0,120}(regular|recurring|daily|weekly|monthly|monitor|hundreds|thousands|multiple|list of|batch)'
+         strong_operational_pain
+         or batch_transformation
+         or operational_integration
+         or data_collection_workflow
+         or (automation_pain and not explicit_product_commission)
        )
       then 'repeatable_workflow'
-      when narrative ~
-        '(logo design|graphic design|video edit|video production|animation|3d model|3d animation|voice ?over|transcription|translation|proofread|article writing|academic|research paper|tutoring|sales representative|cold calling|affiliate marketing|social media campaign|seo services?|marketing freelancer|copy typing|virtual assistant|job description|we are seeking|we''re seeking|we are hiring|we''re hiring|hiring (a|an|freelance)|join (our|a) team|long[- ]term role|full[- ]time role|part[- ]time role|consultant role|commission only|sales agents?|generalist va|take full ownership of .{0,40}workflow|siemens s7|plc\b|industrial automation line|motor control|firmware|embedded systems?|cobot|robotics hardware|weekly wordpress maintenance|wordpress maintenance|routine website maintenance|automated .{0,40}(ad viewer|ad clicking)|stream .{0,40}(ads?|views?) every day|ticket[- ]buying bot|slot (picking|selection) automation|mass account creation|credential stuffing)'
+      when generic_labor or staffing_request or nonsoftware_or_maintenance or abusive_automation
       then 'generic_labor'
       else 'custom_build'
     end demand_class
-  from base
+  from features
 )
 update public.raw_items ri
 set raw_payload =
   jsonb_set(
     jsonb_set(
-      jsonb_set(coalesce(ri.raw_payload,'{}'::jsonb),'{collector}','"freelancer-v1.3.2"'::jsonb,true),
+      jsonb_set(coalesce(ri.raw_payload,'{}'::jsonb),'{collector}','"freelancer-v1.3.3"'::jsonb,true),
       '{evidence_role}','"service_spend"'::jsonb,true
     ),
     '{demand_class}',to_jsonb(c.demand_class),true
