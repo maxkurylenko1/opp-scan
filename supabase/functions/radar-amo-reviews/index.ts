@@ -23,10 +23,53 @@ function clean(value: string | null | undefined) {
 }
 
 function classifyReview(text: string): "problem_demand" | "market_context" | null {
-  const featureGap = /(missing|wish|need (?:a|an|to|way)|no way|without .* way|would be nice|feature|support for|option to|allow (?:me|us|users)|customi[sz]e|configure|manual|workflow|export|import|alternative|paywall|subscription|too expensive|privacy|permission)/i.test(text);
-  if (featureGap) return "problem_demand";
+  const strongGap = /(
+    no way to|
+    missing (?:feature|option|support|ability)|
+    feature request|
+    wish (?:it|this|there|i|we)|
+    would be nice|
+    support for|
+    option to|
+    allow (?:me|us|users) to|
+    needs? (?:an? )?(?:option|feature|way|ability|support)|
+    need to (?:be able|have|use|export|import|configure|customi[sz]e|choose|set|separate|manage|automate)|
+    can(?:not|'t) .{0,50}(?:configure|customi[sz]e|export|import|choose|set|add .*exception|use separate|manage|automate)|
+    have to .{0,60}manually|
+    manually .{0,60}(?:every|each|again|repeat)|
+    manual workflow|
+    tedious|
+    too many steps|
+    looking for (?:an? )?alternative|
+    too expensive|
+    paywall
+  )/ix.test(text);
+  if (strongGap) return "problem_demand";
 
-  const productFailure = /(doesn'?t work|does not work|not working|broken|stopped working|slow|crash|freeze|unusable|bug|fails?|error|blank (?:screen|page)|login fails?|sign in fails?|sync .*error|lost|deleted)/i.test(text);
+  const productFailure = /(
+    doesn'?t work|
+    does not work|
+    not working|
+    broken|
+    stopped working|
+    no longer works?|
+    after (?:the )?(?:latest )?update|
+    version \d|
+    slow|
+    crash|
+    freeze|
+    unusable|
+    bug|
+    fails?|
+    error|
+    blank (?:screen|page)|
+    can(?:not|'t) (?:sign in|log in|login)|
+    sign in fails?|
+    login fails?|
+    sync .{0,30}error|
+    lost|
+    deleted
+  )/ix.test(text);
   if (productFailure) return "market_context";
 
   return null;
@@ -53,7 +96,7 @@ async function ensureSource() {
 Deno.serve(async () => {
   const sourceId = await ensureSource();
   const { data: run, error: runError } = await db.from("collection_runs")
-    .insert({ source_id: sourceId, collector: "amo_reviews", status: "running", metadata: { collector_version: "amo-reviews-v1.1" } })
+    .insert({ source_id: sourceId, collector: "amo_reviews", status: "running", metadata: { collector_version: "amo-reviews-v1.2" } })
     .select("id").single();
 
   if (runError) return new Response(JSON.stringify({ ok: false, error: runError.message }), { status: 500 });
@@ -136,7 +179,7 @@ Deno.serve(async () => {
             addon_users: addon.users,
             score,
             version: rating.version?.version || null,
-            collector: "amo-reviews-v1.1",
+            collector: "amo-reviews-v1.2",
             evidence_role: evidenceRole,
             review_role: evidenceRole === "problem_demand" ? "feature_or_workflow_gap" : "product_failure",
           },
@@ -156,7 +199,7 @@ Deno.serve(async () => {
       records_seen: seen,
       records_inserted: inserted,
       metadata: {
-        collector_version: "amo-reviews-v1.1",
+        collector_version: "amo-reviews-v1.2",
         searches,
         addons_checked: addonStats.length,
         addon_stats: addonStats,
