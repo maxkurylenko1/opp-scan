@@ -273,7 +273,7 @@ with base as (
       '(automated .{0,40}(ad viewer|ad clicking)|stream .{0,40}(ads?|views?) every day|ticket[- ]buying bot|slot (picking|selection) automation|mass account creation|credential stuffing)'
       as abusive_automation,
     narrative ~
-      '(manual process|manually .{0,70}(every|each|repeat|copy|enter|check|send|update)|recurring|repetitive|every (day|week|month|order|time)|each (order|vendor|customer|file)|routine workflows?|day[- ]to[- ]day .{0,50}(manual|work|process)|reminder|notification|keep .{0,60} in sync|synchroni[sz]e|order confirmation|report generation|scheduled report|monitor(ing)? .{0,50}(changes|status|price|data|site)|business metrics|data across .{0,80}(dashboard|report))'
+      '(manual process|manually .{0,70}(every|each|repeat|copy|enter|check|send|update)|recurring|repetitive|every (day|week|month)|routine workflows?|day[- ]to[- ]day .{0,50}(manual|work|process)|keep .{0,60} in sync|synchroni[sz]e|order confirmation|report generation|scheduled report|monitor(ing)? .{0,50}(changes|status|price|data|site)|business metrics|data across .{0,80}(dashboard|report))'
       as strong_operational_pain,
     narrative ~
       '((batch|multiple|dozens|hundreds|thousands|collection) .{0,80}(csv|pdf|document|file|record|image).{0,120}(convert|extract|transfer|process|clean|organize|merge|classify|copy|type))|((convert|extract|transfer|process|clean|organize|merge|classify).{0,120}(batch|multiple|dozens|hundreds|thousands|collection).{0,80}(csv|pdf|document|file|record|image))'
@@ -300,11 +300,19 @@ with base as (
        and not nonsoftware_or_maintenance
        and not abusive_automation
        and (
-         strong_operational_pain
-         or batch_transformation
-         or operational_integration
-         or data_collection_workflow
-         or (automation_pain and not explicit_product_commission)
+         case
+           when explicit_product_commission then
+             strong_operational_pain
+             or batch_transformation
+             or operational_integration
+             or data_collection_workflow
+           else
+             strong_operational_pain
+             or batch_transformation
+             or operational_integration
+             or data_collection_workflow
+             or automation_pain
+         end
        )
       then 'repeatable_workflow'
       when generic_labor or staffing_request or nonsoftware_or_maintenance or abusive_automation
@@ -317,7 +325,7 @@ update public.raw_items ri
 set raw_payload =
   jsonb_set(
     jsonb_set(
-      jsonb_set(coalesce(ri.raw_payload,'{}'::jsonb),'{collector}','"freelancer-v1.3.3"'::jsonb,true),
+      jsonb_set(coalesce(ri.raw_payload,'{}'::jsonb),'{collector}','"freelancer-v1.3.4"'::jsonb,true),
       '{evidence_role}','"service_spend"'::jsonb,true
     ),
     '{demand_class}',to_jsonb(c.demand_class),true
