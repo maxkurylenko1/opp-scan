@@ -56,7 +56,9 @@ Current automated sources include GitHub, Hacker News, Stack Overflow, Freelance
 
 GitHub collection is demand-focused and filters obvious marketing spam, generated maintenance reports and internal implementation chores. Credible feature/problem reports remain eligible for semantic clustering even when willingness-to-pay is weak; they can survive as Scouts but cannot gain strong Product Confidence without independent product-specific evidence.
 
-Reddit requires stable authenticated access in production. `radar-daily` supports official Reddit OAuth automatically when `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` are configured. Public JSON / old.reddit / RSS are only fallbacks and are treated as degraded because datacenter requests can return 403/429. A Reddit failure is recorded explicitly rather than silently pretending coverage exists.
+Hacker News evidence is role-aware. Genuine Ask HN pain can be `problem_demand`; Show HN and promotional Ask HN posts are `launch_competitor`; generic historical stories are `market_context`. Launches never count as buyer demand or money evidence. HN dollar/budget mentions are ignored unless the text explicitly indicates product purchase intent or service spend.
+
+Reddit requires approved authenticated access in production. `radar-daily` supports official Reddit OAuth when `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` and `REDDIT_USER_AGENT` are configured after Reddit approval. There is no unauthenticated JSON/RSS scraping fallback; until approval, Reddit is recorded as `blocked` rather than silently pretending coverage exists.
 
 Avoid brittle scraping when an API, authenticated source or search layer can provide the same evidence.
 
