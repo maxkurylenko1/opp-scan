@@ -746,20 +746,16 @@ $function$
 
 revoke execute on function public.radar_snapshot_scan(uuid,integer) from public,anon,authenticated;
 
--- Re-run legacy GitHub rows through the current source-aware normalizer.
-update public.raw_items ri
-set processed_at=null
-from public.sources src
-where ri.source_id=src.id
+-- Unversioned GitHub collection predates the demand-focused collector and cannot
+-- satisfy the current evidence contract. Preserve it as history, but quarantine it.
+update public.signals s
+set is_actionable=false,
+    extraction_version='legacy-github-quarantined-v2.8'
+from public.raw_items ri
+join public.sources src on src.id=ri.source_id
+where s.raw_item_id=ri.id
   and src.key='github'
-  and coalesce(ri.raw_payload->>'collector','')=''
-  and exists (
-    select 1 from public.signals s
-    where s.raw_item_id=ri.id
-      and s.extraction_version in ('heuristic-v1','sql-heuristic-v1','cross-source-heuristic-v1.2')
-  );
-
-select public.radar_process_pending(2000);
+  and coalesce(ri.raw_payload->>'collector','')='';
 
 -- Links created by older models must not keep non-actionable/context evidence alive.
 delete from public.cluster_signals cs
