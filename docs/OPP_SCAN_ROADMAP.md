@@ -1,6 +1,6 @@
 # Opportunity Radar source roadmap
 
-Status updated: 2026-09-28
+Status updated: 2026-09-29
 
 ## Ordered plan
 
@@ -29,7 +29,7 @@ Status updated: 2026-09-28
    - Algora may strengthen an existing independently discovered cluster, but it cannot seed an Algora-only opportunity.
 
 4. **Add missing high-value source classes**
-   - Status: IN PROGRESS (V2.7).
+   - Status: COMPLETE (V2.7).
    - Product/platform releases: LIVE. Official GitHub Releases API, stable releases by default, strong timing/deprecation/API/auth/security filters, max 3 relevant releases per repository. Stored as `market_context` only and never seeds a problem cluster.
    - Browser extension reviews: LIVE. Official Mozilla Add-ons v5 search + ratings APIs. Only 1–2★ reviews with text are considered; strong feature/workflow gaps become `problem_demand`, while regressions/product failures stay `market_context`.
    - Review author identities are not persisted.
