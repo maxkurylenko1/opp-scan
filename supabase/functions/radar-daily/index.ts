@@ -57,6 +57,10 @@ function tagValue(block: string, tag: string) {
   return match?.[1] || "";
 }
 
+function hnAskLooksPromotional(text: string) {
+  return /(\bi built\b|\bi made\b|\bwe built\b|\bwe launched\b|\bmy (?:app|tool|extension|saas)\b|rolling out|available (?:on|in) (?:the )?(?:chrome web store|app store|play store)|chrome web store|try it|check it out|search ["“'][^"”']+["”'] in|source:\s*https?:\/\/|demo:\s*https?:\/\/)/i.test(text);
+}
+
 function hnQuestionDemand(text: string) {
   return explicitProblemIntent(text)
     || directProductIntent(text)
@@ -89,6 +93,7 @@ async function collectHN(): Promise<Raw[]> {
     const body = decodeHtml(h.story_text);
     const text = `${title}\n${body}`;
     if (!hnQuestionDemand(text)) continue;
+    const promotional = hnAskLooksPromotional(text);
 
     rows.push({
       sourceKey: "hackernews",
@@ -101,13 +106,14 @@ async function collectHN(): Promise<Raw[]> {
       publishedAt: h.created_at,
       rawPayload: {
         ...h,
-        collector: "hn-v1.4",
-        evidence_role: "problem_demand",
+        collector: "hn-v1.4.1",
+        evidence_role: promotional ? "launch_competitor" : "problem_demand",
         classification_hints: {
           ask_hn: true,
           show_hn: false,
+          ask_hn_self_promo: promotional,
           explicit_problem: explicitProblemIntent(text),
-          direct_product_intent: directProductIntent(text),
+          direct_product_intent: promotional ? false : directProductIntent(text),
         },
       },
     });
