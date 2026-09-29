@@ -67,6 +67,14 @@ function isChangelogContext(signal: SignalRow) {
   return isContext(signal) && sourceKind(signal) === "changelog";
 }
 
+function isReviewContext(signal: SignalRow) {
+  return isContext(signal) && sourceKind(signal) === "app_review";
+}
+
+function isAttachableContext(signal: SignalRow) {
+  return isChangelogContext(signal) || isReviewContext(signal);
+}
+
 function embeddingText(signal: SignalRow) {
   return [
     signal.problem,
@@ -101,7 +109,7 @@ function hasSharedSubject(a: string, b: string) {
 }
 
 function isNoise(signal: SignalRow) {
-  if (isChangelogContext(signal)) return false;
+  if (isAttachableContext(signal)) return false;
   const p = signal.problem.trim().toLowerCase();
   if (p.includes("digest")) return true;
   if (p.startsWith("arxiv summary")) return true;
@@ -129,7 +137,7 @@ async function embed(inputs: string[]) {
 }
 
 function chooseMatch(matches: MatchRow[], signal: SignalRow) {
-  if (isChangelogContext(signal)) {
+  if (isAttachableContext(signal)) {
     for (const match of matches) {
       const similarity = Number(match.similarity);
       if (similarity >= 0.82) return match;
@@ -183,7 +191,7 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
 
   const assigned = new Set((links || []).map((row) => row.signal_id as string));
   let candidates = ((signals || []) as SignalRow[]).filter(
-    (signal) => signal.is_actionable || isChangelogContext(signal),
+    (signal) => signal.is_actionable || isAttachableContext(signal),
   );
   if (options.pendingOnly) {
     candidates = candidates.filter((signal) => !assigned.has(signal.id) && signal.embedding_model !== NOISE_MARKER);
