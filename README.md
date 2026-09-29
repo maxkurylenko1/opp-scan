@@ -58,6 +58,8 @@ GitHub collection is demand-focused and filters obvious marketing spam, generate
 
 Hacker News evidence is role-aware. Genuine Ask HN pain can be `problem_demand`; Show HN and promotional Ask HN posts are `launch_competitor`; generic historical stories are `market_context`. Launches never count as buyer demand or money evidence. HN dollar/budget mentions are ignored unless the text explicitly indicates product purchase intent or service spend.
 
+Algora is intentionally treated as corroborating `service_spend`, not primary problem discovery. The collector runs weekly, verifies every listed bounty against the linked live GitHub issue, deactivates closed issues, uses GitHub activity time for recency, and ignores sub-$50 bounties for semantic matching. Algora evidence may attach to an existing cluster but never creates an Algora-only opportunity.
+
 Reddit requires approved authenticated access in production. `radar-daily` supports official Reddit OAuth when `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` and `REDDIT_USER_AGENT` are configured after Reddit approval. There is no unauthenticated JSON/RSS scraping fallback; until approval, Reddit is recorded as `blocked` rather than silently pretending coverage exists.
 
 Avoid brittle scraping when an API, authenticated source or search layer can provide the same evidence.
