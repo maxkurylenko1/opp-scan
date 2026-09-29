@@ -28,6 +28,7 @@ type SignalRow = {
   evidence_quality_score: number;
   money_signal_type: string | null;
   evidence_role: string | null;
+  is_actionable: boolean;
   embedding_model: string | null;
   sources?: { key: string; kind: string } | Array<{ key: string; kind: string }> | null;
 };
@@ -56,6 +57,14 @@ function sourceKey(signal: SignalRow) {
 
 function isMarketplace(signal: SignalRow) {
   return sourceKind(signal) === "marketplace";
+}
+
+function isContext(signal: SignalRow) {
+  return signal.evidence_role === "market_context";
+}
+
+function isChangelogContext(signal: SignalRow) {
+  return isContext(signal) && sourceKind(signal) === "changelog";
 }
 
 function embeddingText(signal: SignalRow) {
@@ -92,6 +101,7 @@ function hasSharedSubject(a: string, b: string) {
 }
 
 function isNoise(signal: SignalRow) {
+  if (isChangelogContext(signal)) return false;
   const p = signal.problem.trim().toLowerCase();
   if (p.includes("digest")) return true;
   if (p.startsWith("arxiv summary")) return true;
@@ -119,6 +129,19 @@ async function embed(inputs: string[]) {
 }
 
 function chooseMatch(matches: MatchRow[], signal: SignalRow) {
+  if (isChangelogContext(signal)) {
+    for (const match of matches) {
+      const similarity = Number(match.similarity);
+      if (similarity >= 0.82) return match;
+      if (
+        match.category === signal.category &&
+        similarity >= 0.74 &&
+        hasSharedSubject(match.name, signal.problem)
+      ) return match;
+    }
+    return null;
+  }
+
   if (isMarketplace(signal)) {
     for (const match of matches) {
       const similarity = Number(match.similarity);
@@ -149,8 +172,8 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
   const [{ data: signals, error }, { data: links, error: linksError }] = await Promise.all([
     supabase
       .from("signals")
-      .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score,money_signal_type,evidence_role,embedding_model,sources!inner(key,kind)")
-      .eq("is_actionable", true)
+      .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score,money_signal_type,evidence_role,is_actionable,embedding_model,sources!inner(key,kind)")
+      .or("is_actionable.eq.true,evidence_role.eq.market_context")
       .order("published_at", { ascending: false })
       .limit(500),
     supabase.from("cluster_signals").select("signal_id").eq("assignment_method", ASSIGNMENT),
@@ -159,7 +182,9 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
   if (linksError) throw linksError;
 
   const assigned = new Set((links || []).map((row) => row.signal_id as string));
-  let candidates = (signals || []) as SignalRow[];
+  let candidates = ((signals || []) as SignalRow[]).filter(
+    (signal) => signal.is_actionable || isChangelogContext(signal),
+  );
   if (options.pendingOnly) {
     candidates = candidates.filter((signal) => !assigned.has(signal.id) && signal.embedding_model !== NOISE_MARKER);
   }
@@ -210,9 +235,8 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
         clusterId = match.id;
         await supabase.from("problem_clusters").update({ last_seen_at: signal.published_at || updatedAt, updated_at: updatedAt }).eq("id", clusterId);
       } else {
-        // Algora is corroborating service-spend evidence, not an independent problem-discovery source.
-        // It may strengthen an existing cluster, but must never seed an Algora-only opportunity.
-        if (sourceKey(signal) === "algora") continue;
+        // Corroboration/context sources may strengthen an existing cluster, but must never seed one.
+        if (sourceKey(signal) === "algora" || isContext(signal)) continue;
 
         const slug = `semantic-${signal.id}`;
         const { data: cluster, error: clusterError } = await supabase
