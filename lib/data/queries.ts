@@ -53,7 +53,6 @@ export async function getDashboardData() {
     supabase.from("radar_scans")
       .select("id,status,started_at,finished_at,opportunities_snapshot_count,metadata")
       .in("status", ["success", "partial"])
-      .gt("opportunities_snapshot_count", 0)
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
