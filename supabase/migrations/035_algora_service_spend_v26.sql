@@ -1,5 +1,9 @@
 -- V2.6: Algora becomes low-frequency service-spend corroboration, not a primary problem source.
 
+alter table public.signals drop constraint if exists signals_money_signal_type_check;
+alter table public.signals add constraint signals_money_signal_type_check
+  check (money_signal_type in ('none','budget','job_post','paid_workaround','purchase_request','existing_subscription','bounty'));
+
 update public.signals s
 set evidence_role='service_spend',
     money_signal_type='bounty',
