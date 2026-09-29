@@ -39,6 +39,16 @@ Status updated: 2026-09-28
    - Release notes and review failures may attach as `market_context` to an existing semantic problem cluster, but they can never seed a cluster themselves.
    - Status: COMPLETE for V2.7 source expansion; continue evaluating additional sources only when they add a genuinely new evidence class.
 
+5. **Ranking and semantic-cluster hygiene**
+   - Status: COMPLETE in V2.8.
+   - Quarantine unversioned legacy GitHub evidence; only the demand-focused `github-demand-v1.3` corpus can participate in discovery.
+   - Re-normalize Stack Overflow through the current strict product/service-intent gate.
+   - Keep legacy Reddit evidence non-actionable while approved Reddit API access is blocked.
+   - Semantic clustering is versioned to `semantic-v1.2`; low-similarity “same category + shared generic token” merges are removed.
+   - Exact/theme ranking counts only actionable `problem_demand` and `service_spend` evidence.
+   - Retired exact candidates get an explicit retired score version so stale rows cannot re-enter snapshots.
+   - A current scan with zero surviving opportunities is shown as zero; the UI must not silently fall back to an older populated scan.
+
 ## Guiding rule
 
 Do not optimize for the largest number of signals. Optimize for independent evidence that improves a decision while keeping weak early ideas alive as Scouts.
