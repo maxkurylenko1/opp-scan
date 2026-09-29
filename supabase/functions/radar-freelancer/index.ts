@@ -6,19 +6,39 @@ const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SE
 type DemandClass = "repeatable_workflow" | "custom_build" | "generic_labor";
 
 function classifyDemand(title: string, description: string, jobs: string): DemandClass {
-  const text = (title + "\n" + description + "\n" + jobs).toLowerCase();
+  const narrative = (title + "\n" + description).toLowerCase();
+  const skillText = jobs.toLowerCase();
+
+  const genericLabor =
+    /(logo design|graphic design|video edit|video production|animation|3d model|3d animation|voice ?over|transcription|translation|proofread|article writing|academic|research paper|tutoring|sales representative|cold calling|affiliate marketing|social media campaign|seo services?|marketing freelancer|copy typing|virtual assistant)/i.test(narrative);
+
+  const staffingRequest =
+    /(job description|we are seeking|we're seeking|join (our|a) team|long[- ]term role|full[- ]time role|part[- ]time role|consultant role|commission only)/i.test(narrative);
+
+  const explicitWorkflow =
+    /(automate|automation|workflow|power automate|zapier|make\.com|n8n|manual process|manually .{0,70}(every|each|repeat|copy|enter|check|send|update)|recurring|repetitive|every (day|week|month|order|time)|each (order|vendor|customer|file)|reminder|notification|keep .{0,60} in sync|synchroni[sz]e|order confirmation|report generation|scheduled report|monitor(ing)? .{0,50}(changes|status|price|data|site)|business metrics|data across .{0,80}(dashboard|report))/i.test(narrative);
+
+  const batchTransformation =
+    /((batch|multiple|dozens|hundreds|thousands|collection) .{0,80}(csv|pdf|document|file|record|image).{0,120}(convert|extract|transfer|process|clean|organize|merge|classify))|((convert|extract|transfer|process|clean|organize|merge|classify).{0,120}(batch|multiple|dozens|hundreds|thousands|collection).{0,80}(csv|pdf|document|file|record|image))/i.test(narrative);
+
+  const operationalIntegration =
+    /((connect|integrat|sync).{0,100}(crm|sharepoint|google sheets|whatsapp|shopify|woocommerce|etsy|squarespace|payment|inventory|orders?|leads?).{0,120}(automat|workflow|sync|update|route|confirm|notify|report))|((orders?|inventory|leads?|customer data).{0,100}(sync|automat|route|confirm|update).{0,100}(crm|sharepoint|google sheets|whatsapp|shopify|woocommerce|api))/i.test(narrative);
+
+  const dataCollectionWorkflow =
+    /(web scraping|data extraction|ocr|data mining).{0,120}(regular|recurring|daily|weekly|monthly|monitor|hundreds|thousands|multiple|list of|batch)/i.test(narrative);
 
   const repeatableWorkflow =
-    /(automat(e|ion|ic)|workflow|power automate|zapier|make\.com|n8n|webhook|api integration|system integration|sync|synchroni[sz]e|dashboard|reporting|report generation|reminder|notification|monitor(ing)?|scrap(e|ing)|data extraction|ocr|batch (of )?(files|documents|images|records)|multiple (files|documents|records)|every (day|week|month|order|time)|each (order|vendor|customer|file)|recurring|repetitive|manual process|manually .{0,60}(every|each|repeat)|crm|google sheets|sharepoint|csv .{0,40}(excel|sheet)|pdf .{0,40}(word|excel|text)|document .{0,40}(convert|extract|process)|order confirmation|lead .{0,30}(enrich|collect|extract)|business metrics)/i.test(text);
-
-  const oneOffCreativeOrLabor =
-    /(logo design|graphic design|video edit|video production|animation|3d model|3d animation|voice ?over|transcription|translation|proofread|article writing|academic|research paper|tutoring|sales representative|cold calling|affiliate marketing|social media campaign|seo services?|marketing freelancer|data entry only|copy typing|virtual assistant)/i.test(text);
+    !genericLabor &&
+    !staffingRequest &&
+    (explicitWorkflow || batchTransformation || operationalIntegration || dataCollectionWorkflow);
 
   const customBuild =
-    /(build (a|an|the)? ?(website|web app|app|platform|game)|website development|web development|mobile app development|full[- ]stack developer|redesign|restore .{0,30}(site|website)|fix .{0,30}(bug|site|website)|firmware|embedded|game development|shopify store|wordpress site|membership website|ecommerce site|security review|penetration test)/i.test(text);
+    /(build (a|an|the)? ?(website|web app|app|platform|game)|website development|web development|mobile app development|full[- ]stack developer|redesign|restore .{0,30}(site|website)|fix .{0,30}(bug|site|website)|firmware|embedded|game development|shopify store|wordpress site|membership website|ecommerce site|security review|penetration test|api integration)/i.test(narrative)
+    || /(web development|mobile app development|firmware development|game development)/i.test(skillText);
 
-  if (repeatableWorkflow && !oneOffCreativeOrLabor) return "repeatable_workflow";
-  if (customBuild || oneOffCreativeOrLabor) return oneOffCreativeOrLabor ? "generic_labor" : "custom_build";
+  if (repeatableWorkflow) return "repeatable_workflow";
+  if (genericLabor) return "generic_labor";
+  if (customBuild || staffingRequest) return "custom_build";
   return "custom_build";
 }
 
@@ -46,7 +66,7 @@ Deno.serve(async () => {
       source_id: source.id,
       collector: "freelancer",
       status: "running",
-      metadata: { collector_version: "freelancer-v1.3" },
+      metadata: { collector_version: "freelancer-v1.3.1" },
     })
     .select("id")
     .single();
@@ -107,7 +127,7 @@ Deno.serve(async () => {
           jobs: p.jobs,
           urgent: p.urgent,
           bid_stats: p.bid_stats,
-          collector: "freelancer-v1.3",
+          collector: "freelancer-v1.3.1",
           evidence_role: "service_spend",
           demand_class: demandClass,
           full_description: Boolean(p.description),
@@ -128,7 +148,7 @@ Deno.serve(async () => {
         records_seen: projects.length,
         records_inserted: inserted,
         metadata: {
-          collector_version: "freelancer-v1.3",
+          collector_version: "freelancer-v1.3.1",
           role: "service_spend",
           demand_classes: classCounts,
         },
