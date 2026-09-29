@@ -64,6 +64,10 @@ Platform/API release notes are collected from a curated set of official GitHub r
 
 Firefox add-on reviews are collected through Mozilla's official Add-ons API. The collector keeps only textual 1–2 star reviews, does not persist reviewer identities, and separates strong feature/workflow gaps from ordinary regressions. Feature/workflow gaps can become `problem_demand`; product failures remain `market_context`.
 
+Freelancer is treated as paid problem-cost evidence, not automatic SaaS demand. The collector uses full project descriptions and classifies requests as `repeatable_workflow`, `custom_build`, or `generic_labor`. Only repeatable workflow spend is eligible for problem discovery; one-off builds and generic staffing/labor remain non-actionable service-spend context.
+
+Changelog and review `market_context` can be semantically attached to an already-established problem cluster at a strict similarity threshold. Context sources never create their own problem clusters, so vendor releases and product regressions cannot manufacture demand.
+
 Reddit requires approved authenticated access in production. `radar-daily` supports official Reddit OAuth when `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` and `REDDIT_USER_AGENT` are configured after Reddit approval. There is no unauthenticated JSON/RSS scraping fallback; until approval, Reddit is recorded as `blocked` rather than silently pretending coverage exists.
 
 Avoid brittle scraping when an API, authenticated source or search layer can provide the same evidence.
