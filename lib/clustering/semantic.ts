@@ -27,8 +27,9 @@ type SignalRow = {
   purchase_intent_score: number;
   evidence_quality_score: number;
   money_signal_type: string | null;
+  evidence_role: string | null;
   embedding_model: string | null;
-  sources?: { kind: string } | Array<{ kind: string }> | null;
+  sources?: { key: string; kind: string } | Array<{ key: string; kind: string }> | null;
 };
 
 type MatchRow = {
@@ -45,6 +46,12 @@ function sourceKind(signal: SignalRow) {
   const source = signal.sources;
   if (Array.isArray(source)) return source[0]?.kind || null;
   return source?.kind || null;
+}
+
+function sourceKey(signal: SignalRow) {
+  const source = signal.sources;
+  if (Array.isArray(source)) return source[0]?.key || null;
+  return source?.key || null;
 }
 
 function isMarketplace(signal: SignalRow) {
@@ -142,7 +149,7 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
   const [{ data: signals, error }, { data: links, error: linksError }] = await Promise.all([
     supabase
       .from("signals")
-      .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score,money_signal_type,embedding_model,sources!inner(kind)")
+      .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score,money_signal_type,evidence_role,embedding_model,sources!inner(key,kind)")
       .eq("is_actionable", true)
       .order("published_at", { ascending: false })
       .limit(500),
@@ -203,6 +210,10 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
         clusterId = match.id;
         await supabase.from("problem_clusters").update({ last_seen_at: signal.published_at || updatedAt, updated_at: updatedAt }).eq("id", clusterId);
       } else {
+        // Algora is corroborating service-spend evidence, not an independent problem-discovery source.
+        // It may strengthen an existing cluster, but must never seed an Algora-only opportunity.
+        if (sourceKey(signal) === "algora") continue;
+
         const slug = `semantic-${signal.id}`;
         const { data: cluster, error: clusterError } = await supabase
           .from("problem_clusters")
