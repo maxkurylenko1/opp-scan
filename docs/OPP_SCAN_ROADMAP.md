@@ -107,7 +107,7 @@ Status updated: 2026-09-30
 
 12. **Commercial validation triage of Research leads**
    - Status: COMPLETE for the 2026-09-30 desk-research sweep; real pilots/interviews remain open.
-   - Full record: [Commercial validation sweep](COMMERCIAL_VALIDATION_SWEEP_2026-09-30.md).
+   - Full record: [Commercial validation sweep](COMMERCIAL_VALIDATION_SWEEP_2026-09-30.md).\n   - Execution plan: [Validation playbook V1](VALIDATION_PLAYBOOK_V1.md).
    - Production queue after review: **2 Validate / 4 Research / 1 New / 14 Archived**.
    - Validate only means the evidence is strong enough to justify a real paid-validation experiment; it is not proof of willingness to pay or product-market fit.
    - Current Validate hypotheses: high-volume pre-PIM catalog/UPC cleanup and managed KV-cache persistence/control for long-running agentic workloads.
