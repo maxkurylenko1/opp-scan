@@ -58,6 +58,14 @@ begin
     v_direct_product := v_text ~
       '(would pay|willing to pay|pay for (a|an|this|something)|looking for (a|an|some) (tool|app|service|alternative)|need (a|an) (tool|app|service)|any (tool|app|service).{0,50}(for|that)|paid (tool|app|service)|subscription.{0,40}(need|worth|looking))';
 
+    -- Quoting "pay for a better plan" while saying it is unaffordable
+    -- is not a purchase commitment. Keep the pain, remove false WTP.
+    if r.source_key='hackernews'
+       and v_text ~ '(can''t (currently )?(really )?afford|cannot afford|unable to afford|not willing to pay)'
+       and v_text !~ '(would pay|willing to pay|looking for (a|an|some) (tool|app|service|alternative))' then
+      v_direct_product:=false;
+    end if;
+
     v_service_spend := v_text ~
       '(hiring|hire (a|an|someone|developer|freelancer|contractor)|looking for (a|an) (developer|freelancer|contractor)|freelancer needed|contractor needed|bounty|cash reward|paid bounty)';
 
@@ -98,6 +106,7 @@ begin
         or lower(trim(coalesce(r.title,''))) ~ '^/[a-z0-9_-]+:'
         or lower(coalesce(r.title,'')) ~ '(daily|weekly)[[:space:]]+(digest|report|roundup|summary)'
         or lower(coalesce(r.title,'')) like '%catalog alignment%'
+        or v_text ~ '(researched in full in|this issue records why|docs/findings[.]md)'
         or (lower(coalesce(r.body,'')) like '%## mission%' and lower(coalesce(r.body,'')) ~ '(exploratory workflow|start the application|pnpm dev)')
         or lower(coalesce(r.title,'')) ~ '^(fix|feat|chore|docs|test|tests|refactor|ci|build|release|perf|spec|research|prd|deep-review|fork watch|daily|weekly|phase[ ]*[0-9]*|history|master index|team-status|curriculum-eval)(\(|:|[ ]|—|-|\[)'
         or lower(coalesce(r.title,'')) ~ '^\[(phase|roadmap|epic)[ ]*[0-9]*\]'
@@ -449,6 +458,14 @@ from public.sources src
 where src.id=ri.source_id
   and src.key='github'
   and coalesce(ri.raw_payload->>'collector','') in ('github-demand-v1.3','github-demand-v1.4');
+
+-- Re-score HN as well: quoted expensive-plan advice does not mean a buyer will pay.
+update public.raw_items ri
+set processed_at=null
+from public.sources src
+where src.id=ri.source_id
+  and src.key='hackernews'
+  and coalesce(ri.raw_payload->>'collector','') like 'hn-v1.%';
 
 select public.radar_process_pending(1000);
 
