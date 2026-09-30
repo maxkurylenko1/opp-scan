@@ -56,9 +56,10 @@ export default async function Home() {
               <p className="eyebrow">EARLY RESEARCH · UNVALIDATED</p>
               <h2>Problems worth checking</h2>
               <p className="muted">
-                Individually reviewed original reports, not ranked opportunities.
-                Each currently has one source and still needs independent corroboration
-                before it can support an investment or product decision.
+                Manually reviewed problem reports and follow-up references as of 30 Sep 2026.
+                Independent user reports are separate from related workflows, product documentation
+                and existing solutions. None of these research notes affect Opportunity scores,
+                buyer confidence or the US/EU Top-5.
               </p>
             </div>
           </div>
@@ -67,20 +68,44 @@ export default async function Home() {
               <article className="card" key={lead.id}>
                 <div className="card-top">
                   <span className="eyebrow">{lead.sourceName}</span>
-                  <span className="badge">1 original report</span>
+                  <span className="badge">
+                    {lead.independentReportCount} independent {lead.independentReportCount === 1 ? "report" : "reports"}
+                  </span>
                 </div>
                 <h3 style={{ marginTop: 14 }}>{lead.problem}</h3>
                 <p className="muted" style={{ fontSize: 13, marginTop: 16 }}>
                   <strong style={{ color: "#e7ecfb" }}>Next check: </strong>
                   {lead.nextCheck}
                 </p>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 18 }}>
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    {when(lead.publishedAt)} · No independent confirmation
-                  </span>
+                <div style={{ marginTop: 18, display: "grid", gap: 10 }}>
                   <a href={lead.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: "#bcd0ff", textDecoration: "underline" }}>
-                    Original source ↗
+                    Original report · {when(lead.publishedAt)} ↗
                   </a>
+                  {lead.researchReferences.map((reference) => (
+                    <div key={reference.url}>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 9 }}>
+                        <a href={reference.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: "#bcd0ff", textDecoration: "underline" }}>
+                          {reference.label} ↗
+                        </a>
+                        <span className="muted" style={{ fontSize: 11 }}>
+                          {reference.kind === "independent_report"
+                            ? "Independent report"
+                            : reference.kind === "related_workflow"
+                              ? "Related workflow, not direct confirmation"
+                              : reference.kind === "existing_solution"
+                                ? "Existing solution / competition"
+                                : "Technical context only"}
+                        </span>
+                      </div>
+                      <p className="muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+                        {reference.note}
+                      </p>
+                    </div>
+                  ))}
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    Manual review: {lead.reviewedAt}. Independent reports are not proof of
+                    current product gaps, willingness to pay or market demand.
+                  </span>
                 </div>
               </article>
             ))}
