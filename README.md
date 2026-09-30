@@ -68,6 +68,8 @@ Freelancer is treated as paid problem-cost evidence, not automatic SaaS demand. 
 
 Changelog and review `market_context` can be semantically attached to an already-established problem cluster at a strict similarity threshold. Context sources never create their own problem clusters, so vendor releases and product regressions cannot manufacture demand.
 
+The dashboard distinguishes **Early Research** from ranked Opportunities. Early Research presents a small, manually inspected set of original HN / Firefox problem reports with direct source links and explicit follow-up questions. Each is single-source and unvalidated; a lead disappears if its underlying signal is reclassified as non-actionable. It never increases product confidence or fills the market Top-5 artificially.
+
 Reddit requires approved authenticated access in production. `radar-daily` supports official Reddit OAuth when `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` and `REDDIT_USER_AGENT` are configured after Reddit approval. There is no unauthenticated JSON/RSS scraping fallback; until approval, Reddit is recorded as `blocked` rather than silently pretending coverage exists.
 
 Avoid brittle scraping when an API, authenticated source or search layer can provide the same evidence.

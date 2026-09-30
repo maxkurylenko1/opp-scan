@@ -58,6 +58,14 @@ Status updated: 2026-09-30
    - Reuse previously computed embeddings; increase daily pending batch modestly from 150 to 180.
    - Refresh the latest scan snapshot immediately after reclustering and ranking so the dashboard does not show yesterday's pre-cluster Top-5.
 
+7. **Early Research: source-backed leads, separate from Opportunities**
+   - Status: COMPLETE (V2.10).
+   - Show a small, manually inspected list of original problem reports (Hacker News / Firefox reviews) while strict market-specific Top-5 may be empty.
+   - Each lead is explicitly single-source and unvalidated, links to the original report, and has a concrete independent-corroboration question.
+   - Only show a lead while its underlying signal remains actionable `problem_demand`; source reclassification removes it automatically.
+   - Never convert the manually reviewed lead list into score, buyer confidence, cross-source count, outreach automation, or a claim of independently confirmed demand.
+   - Broad cross-repository GitHub keyword searches were audited but produced mostly internal plans and tracking issues; do not import them as confirmations.
+
 ## Guiding rule
 
 Do not optimize for the largest number of signals. Optimize for independent evidence that improves a decision while keeping weak early ideas alive as Scouts.
