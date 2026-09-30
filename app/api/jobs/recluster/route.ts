@@ -24,6 +24,27 @@ async function run(limit: number, pendingOnly: boolean) {
     const { data: ranking, error: rankError } = await supabase.rpc("radar_refresh_and_rank");
     if (rankError) throw rankError;
 
+    // The source scan completes before the Vercel recluster cron. Refresh its
+    // snapshot after ranking so the dashboard never displays pre-cluster Top-5.
+    const { data: latestScan, error: scanError } = await supabase
+      .from("radar_scans")
+      .select("id,started_at")
+      .in("status", ["success", "partial"])
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (scanError) throw scanError;
+
+    let snapshotCount: number | null = null;
+    if (latestScan?.id && Date.now() - Date.parse(latestScan.started_at) < 24 * 60 * 60 * 1000) {
+      const { data: snapshot, error: snapshotError } = await supabase.rpc("radar_snapshot_scan", {
+        p_scan_id: latestScan.id,
+        p_limit: 5,
+      });
+      if (snapshotError) throw snapshotError;
+      snapshotCount = Number(snapshot ?? 0);
+    }
+
     const { data: prospects, error: prospectError } = await supabase.rpc("discover_validation_prospects", {
       p_limit_per_experiment: 20,
       p_min_score: 60,
@@ -32,7 +53,7 @@ async function run(limit: number, pendingOnly: boolean) {
 
     const outreach = await generateOutreachDrafts(5, { autoOnly: true });
 
-    return NextResponse.json({ ok: true, ...result, ranking, prospects, outreach });
+    return NextResponse.json({ ok: true, ...result, ranking, snapshotCount, prospects, outreach });
   } catch (error) {
     console.error("semantic recluster failed", error);
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
