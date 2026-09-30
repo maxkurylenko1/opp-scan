@@ -30,6 +30,7 @@ type SignalRow = {
   evidence_role: string | null;
   is_actionable: boolean;
   embedding_model: string | null;
+  embedding: string | number[] | null;
   sources?: { key: string; kind: string } | Array<{ key: string; kind: string }> | null;
 };
 
@@ -89,6 +90,19 @@ function embeddingText(signal: SignalRow) {
 
 function vectorLiteral(vector: number[]) {
   return `[${vector.join(",")}]`;
+}
+
+// PostgREST typically serializes pgvector as a JSON-shaped string. Reusing
+// an existing embedding avoids paying for and recalculating context every day.
+function storedEmbedding(signal: SignalRow): number[] | null {
+  if (signal.embedding_model !== MODEL || !signal.embedding) return null;
+  try {
+    const value = typeof signal.embedding === "string" ? JSON.parse(signal.embedding) : signal.embedding;
+    return Array.isArray(value) && value.length === DIMENSIONS &&
+      value.every((x) => typeof x === "number" && Number.isFinite(x)) ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 function tokens(value: string) {
@@ -183,7 +197,7 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
   const [{ data: signals, error }, { data: links, error: linksError }] = await Promise.all([
     supabase
       .from("signals")
-      .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score,money_signal_type,evidence_role,is_actionable,embedding_model,sources!inner(key,kind)")
+      .select("id,published_at,persona,industry,category,problem,workflow,workaround,pain_score,purchase_intent_score,evidence_quality_score,money_signal_type,evidence_role,is_actionable,embedding_model,embedding,sources!inner(key,kind)")
       .or("is_actionable.eq.true,evidence_role.eq.market_context")
       .order("is_actionable", { ascending: false })
       .order("published_at", { ascending: false })
@@ -215,23 +229,35 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
   }
 
   let embedded = 0;
+  let reused = 0;
   let created = 0;
   let assignedCount = 0;
 
   for (let start = 0; start < rows.length; start += 32) {
     const batch = rows.slice(start, start + 32);
-    const vectors = await embed(batch.map(embeddingText));
+    const existing = batch.map(storedEmbedding);
+    const missing = batch.map((_, i) => i).filter((i) => !existing[i]);
+    const generated = missing.length ? await embed(missing.map((i) => embeddingText(batch[i]))) : [];
+    const vectors = [...existing] as Array<number[] | null>;
+    missing.forEach((i, n) => { vectors[i] = generated[n]; });
+
     for (let i = 0; i < batch.length; i++) {
       const signal = batch[i];
-      const vectorText = vectorLiteral(vectors[i]);
+      const vector = vectors[i];
+      if (!vector) throw new Error(`Missing embedding for signal ${signal.id}`);
+      const vectorText = vectorLiteral(vector);
       const updatedAt = new Date().toISOString();
 
-      const { error: updateSignalError } = await supabase
-        .from("signals")
-        .update({ embedding: vectorText, embedding_model: MODEL, embedding_updated_at: updatedAt })
-        .eq("id", signal.id);
-      if (updateSignalError) throw updateSignalError;
-      embedded++;
+      if (existing[i]) {
+        reused++;
+      } else {
+        const { error: updateSignalError } = await supabase
+          .from("signals")
+          .update({ embedding: vectorText, embedding_model: MODEL, embedding_updated_at: updatedAt })
+          .eq("id", signal.id);
+        if (updateSignalError) throw updateSignalError;
+        embedded++;
+      }
 
       const { data: matches, error: matchError } = await supabase.rpc("match_problem_clusters", {
         query_embedding: vectorText,
@@ -250,10 +276,10 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
         // Corroboration/context sources may strengthen an existing cluster, but must never seed one.
         if (sourceKey(signal) === "algora" || isContext(signal)) continue;
 
-        const slug = `semantic-${signal.id}`;
+        const slug = `semantic-v12-${signal.id}`;
         const { data: cluster, error: clusterError } = await supabase
           .from("problem_clusters")
-          .insert({
+          .upsert({
             slug,
             name: signal.problem.slice(0, 180),
             summary: signal.problem,
@@ -264,7 +290,7 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
             last_seen_at: signal.published_at || updatedAt,
             embedding: vectorText,
             clustering_version: ASSIGNMENT,
-          })
+          }, { onConflict: "slug" })
           .select("id")
           .single();
         if (clusterError) throw clusterError;
@@ -301,6 +327,7 @@ export async function reclusterSignals(limit = 100, options: ReclusterOptions = 
     filteredNoise: noiseRows.length,
     processed: rows.length,
     embedded,
+    reused,
     assigned: assignedCount,
     clustersCreated: created,
   };
