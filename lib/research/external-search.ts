@@ -49,6 +49,8 @@ const STOP = new Set([
   "tools", "tool", "software", "project", "projects", "service", "services",
   "application", "applications", "app", "apps", "feature", "request", "requests",
   "without", "create", "creating", "build", "building", "currently",
+  "a", "an", "the", "and", "or", "of", "to", "for", "in", "on", "at",
+  "is", "are", "was", "were", "be", "do", "did", "you", "we", "our",
 ]);
 
 function words(text: string): string[] {
