@@ -84,6 +84,16 @@ Status updated: 2026-09-30
    - Firefox multi-account routing: native containers launched in Firefox 153 and the free Mozilla extension already supports multiple logins. An August 2026 MSP report identifies a narrower 30+ tenant navigation/routing workflow and includes an existing prototype. No paid demand verified.
    - For each lead: document existing alternatives, a reproducible test, affected-user interview criteria, a concrete paid-pilot test and a stop condition. Keep all findings outside automatic opportunity scores/ranking.
 
+10. **Automatically maintained Early Research inbox**
+   - Status: V2.13 — implemented; final production verification required after merge.
+   - Introduce private research_leads / research_lead_refs tables with RLS, service-role access, original-source URLs, duplicate-safe anchor keys, manual notes, and status New → Research → Validate → Archived.
+   - Seed the six previously inspected HN/Firefox leads as curated Research; propose up to 15 additional leads per day from already approved/sanitized HN, Firefox review and qualified repeatable paid Freelancer signals; cap unattended New backlog at 50.
+   - Run the queue refresh daily at 06:05 UTC after the existing 05:00 source collectors and 05:20 semantic recluster; allow admin-only one-click refresh.
+   - Search the existing embedded corpus for strictly subject-matched related complaints, separate paid service briefs, competitor launches and release context. Suggestions remain pending until an administrator opens the primary source and confirms relevance or dismisses the match.
+   - A single paid freelance job is service-spend evidence, not proof of product willingness to pay. A launch/release is competition/timing context, not a second buyer. No new signal, cluster, ranking confidence, purchase-intent or independent-demand count is created by the research inbox.
+   - Manual review supports reasoned archive, edits to notes/status, separate matching decisions; archived URLs are not automatically resurrected.
+   - Never search Reddit while approved access is missing. V2.13 matching is limited to the already collected, legitimately available corpus and does not claim exhaustive external market or competitor research.
+
 ## Guiding rule
 
 Do not optimize for the largest number of signals. Optimize for independent evidence that improves a decision while keeping weak early ideas alive as Scouts.
