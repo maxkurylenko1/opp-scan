@@ -176,7 +176,7 @@ function githubNoise(title: string, body: string, author = "", authorType = "") 
   const generatedTitle = /(?:日报|周报|简报|社区动态|每日报告|每周报告|daily\s+(?:digest|report|roundup|summary)|weekly\s+(?:digest|report|roundup|summary)|^\[done\]|^\[(?:epic|roadmap|phase)\])/i;
   const bot = authorType.toLowerCase() === "bot" || /\[bot\]$/i.test(author);
   const spam = /(best .{0,40}(?:agency|company)|digital marketing agency|industrial training|build your career|career with|internship program|seo services|web development company|youtube links|ссылки youtube|sample feature request for testing|test feature issue for automation|invoice ocr api:\s*automate)/i;
-  const generatedMeta = /(daily repository status report|master index \(|fork watch:|deep manual audit|this issue does not authorize|definition of done for this issue|current checkpoint:|implementation repository:|\npart of #\d+)/i;
+  const generatedMeta = /(daily repository status report|master index \(|fork watch:|deep manual audit|this issue does not authorize|definition of done for this issue|current checkpoint:|implementation repository:|researched in full in|this issue records why|docs\/findings\.md|\npart of #\d+)/i;
   const internalAgentSpec = /##\s*mission/i.test(body) && /(scheduled agent|exploratory workflow|start the application|pnpm dev)/i.test(t);
   return bot || titleNoise.test(title.trim()) || generatedTitle.test(title.trim())
     || spam.test(t) || generatedMeta.test(t) || internalAgentSpec;
