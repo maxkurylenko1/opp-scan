@@ -14,6 +14,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </div>
         <div className="card-grid">
           <Link className="card" href="/admin/scans"><p className="eyebrow">SCANS</p><h3>Run Radar & browse history</h3><p className="muted">Launch a full scan manually and inspect each dated snapshot separately.</p></Link>
+          <Link className="card" href="/research"><p className="eyebrow">RESEARCH</p><h3>Review early signals</h3><p className="muted">Curated and automatically suggested problems, original sources, manual decisions and corroboration review.</p></Link>
           <Link className="card" href="/execution"><p className="eyebrow">VALIDATION</p><h3>Execution CRM</h3><p className="muted">Prospects, outreach drafts, replies, paid pilots and verdicts.</p></Link>
         </div>
       </div>
