@@ -49,6 +49,45 @@ export default async function Home() {
         </section>
       )}
 
+      {!!data.earlyLeads.length && (
+        <section style={{ marginBottom: 42 }}>
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">EARLY RESEARCH · UNVALIDATED</p>
+              <h2>Problems worth checking</h2>
+              <p className="muted">
+                Individually reviewed original reports, not ranked opportunities.
+                Each currently has one source and still needs independent corroboration
+                before it can support an investment or product decision.
+              </p>
+            </div>
+          </div>
+          <div className="card-grid">
+            {data.earlyLeads.map((lead) => (
+              <article className="card" key={lead.id}>
+                <div className="card-top">
+                  <span className="eyebrow">{lead.sourceName}</span>
+                  <span className="badge">1 original report</span>
+                </div>
+                <h3 style={{ marginTop: 14 }}>{lead.problem}</h3>
+                <p className="muted" style={{ fontSize: 13, marginTop: 16 }}>
+                  <strong style={{ color: "#e7ecfb" }}>Next check: </strong>
+                  {lead.nextCheck}
+                </p>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 18 }}>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    {when(lead.publishedAt)} · No independent confirmation
+                  </span>
+                  <a href={lead.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: "#bcd0ff", textDecoration: "underline" }}>
+                    Original source ↗
+                  </a>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section>
         <div className="section-heading">
           <div>
@@ -60,7 +99,7 @@ export default async function Home() {
         <div className="card-grid">
           {data.markets.us.map((item) => <OpportunityCard key={item.id} item={item} />)}
         </div>
-        {!data.markets.us.length && <div className="empty">No US snapshot is available yet. Run a new Radar scan.</div>}
+        {!data.markets.us.length && <div className="empty">No US opportunity has passed the current evidence gates. Review early research leads above while independent evidence accumulates.</div>}
       </section>
 
       <section style={{ marginTop: 42 }}>
@@ -74,7 +113,7 @@ export default async function Home() {
         <div className="card-grid">
           {data.markets.eu.map((item) => <OpportunityCard key={item.id} item={item} />)}
         </div>
-        {!data.markets.eu.length && <div className="empty">No Europe snapshot is available yet. Run a new Radar scan.</div>}
+        {!data.markets.eu.length && <div className="empty">No European opportunity has passed the current evidence gates. Review early research leads above while independent evidence accumulates.</div>}
       </section>
     </div>
   );
