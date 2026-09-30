@@ -170,18 +170,22 @@ function explicitProblemIntent(text: string) {
   return /(feature request|is your feature request related to a problem|what problem are you hitting|current(?:ly)? .{0,60}(?:cannot|can't|doesn't|does not|fails|missing)|there is no way|no way to|wish (?:there|i|we)|need (?:a way|to|an? tool)|looking for (?:an? )?(?:tool|alternative|way)|manual(?:ly)?|tedious|time-consuming|frustrat|pain point|struggle|blocked|keeps? (?:failing|breaking))/i.test(text);
 }
 
-function githubNoise(title: string, body: string) {
+function githubNoise(title: string, body: string, author = "", authorType = "") {
   const t = `${title}\n${body}`;
-  const titleNoise = /^(?:fix|feat|chore|docs|test|tests|refactor|ci|build|release|perf|spec|research|prd|deep-review|fork watch|daily|weekly|phase\s*\d*|history|master index|team-status|curriculum-eval)(?:\(|:|\s|—|-|\[)/i;
+  const titleNoise = /^(?:fix|feat|chore|docs|test|tests|refactor|ci|build|release|perf|spec|research|prd|deep-review|fork watch|daily|weekly|phase\s*\d*|history|master index|team-status|curriculum-eval|scheduled agent|product:|\/[-a-z0-9]+:)(?:\(|:|\s|—|-|\[)/i;
+  const generatedTitle = /(?:日报|周报|简报|社区动态|每日报告|每周报告|daily\s+(?:digest|report|roundup|summary)|weekly\s+(?:digest|report|roundup|summary)|^\[done\]|^\[(?:epic|roadmap|phase)\])/i;
+  const bot = authorType.toLowerCase() === "bot" || /\[bot\]$/i.test(author);
   const spam = /(best .{0,40}(?:agency|company)|digital marketing agency|industrial training|build your career|career with|internship program|seo services|web development company|youtube links|ссылки youtube|sample feature request for testing|test feature issue for automation|invoice ocr api:\s*automate)/i;
   const generatedMeta = /(daily repository status report|master index \(|fork watch:|deep manual audit|this issue does not authorize|definition of done for this issue|current checkpoint:|implementation repository:|\npart of #\d+)/i;
-  return titleNoise.test(title.trim()) || spam.test(t) || generatedMeta.test(t);
+  const internalAgentSpec = /##\s*mission/i.test(body) && /(scheduled agent|exploratory workflow|start the application|pnpm dev)/i.test(t);
+  return bot || titleNoise.test(title.trim()) || generatedTitle.test(title.trim())
+    || spam.test(t) || generatedMeta.test(t) || internalAgentSpec;
 }
 
 function githubDemandSignal(item: any) {
   const title = item.title || "";
   const body = decodeHtml(item.body);
-  if (githubNoise(title, body)) return false;
+  if (githubNoise(title, body, item.user?.login || "", item.user?.type || "")) return false;
   const text = `${title}\n${body}`;
   const labels = (item.labels || []).map((x: any) => typeof x === "string" ? x : x?.name || "").join(" ");
   const featureLabel = /(feature|enhancement|request|improvement|ux)/i.test(labels);
@@ -214,7 +218,7 @@ async function collectGitHub(): Promise<Raw[]> {
     for (const item of json.items || []) {
       const title = item.title || "Untitled issue";
       const body = decodeHtml(item.body);
-      if (githubNoise(title, body)) continue;
+      if (githubNoise(title, body, item.user?.login || "", item.user?.type || "")) continue;
       if (!githubDemandSignal(item)) continue;
       all.push({
         sourceKey: "github",
@@ -227,7 +231,7 @@ async function collectGitHub(): Promise<Raw[]> {
         publishedAt: item.created_at,
         rawPayload: {
           ...item,
-          collector: "github-demand-v1.3",
+          collector: "github-demand-v1.4",
           classification_hints: {
             explicit_problem: explicitProblemIntent(`${title}\n${body}`),
             direct_product_intent: directProductIntent(`${title}\n${body}`),
