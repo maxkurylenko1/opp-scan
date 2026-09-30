@@ -1,5 +1,6 @@
 import { demoOpportunities } from "./demo";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { getEarlyResearchLeads } from "@/lib/research/early-leads";
 import type { OpportunityBriefView, OpportunityView } from "@/lib/types";
 
 function toOpportunityView(x: any, origin: "theme" | "exact" = "exact"): OpportunityView {
@@ -33,6 +34,7 @@ export async function getDashboardData() {
     clusterCount: 53,
     clusterMode: "heuristic-v1",
     latestScan: null,
+    earlyLeads: [],
     markets: {
       us: demoOpportunities.slice(0, 5),
       eu: demoOpportunities.slice(0, 5),
@@ -45,6 +47,7 @@ export async function getDashboardData() {
     { count: semanticClusterCount },
     { count: heuristicClusterCount },
     { data: latestScan, error: scanError },
+    earlyLeads,
   ] = await Promise.all([
     supabase.from("signals").select("*", { count: "exact", head: true }),
     supabase.from("opportunity_themes").select("*", { count: "exact", head: true }).eq("theme_version", "theme-v1.0").neq("status", "killed"),
@@ -56,6 +59,7 @@ export async function getDashboardData() {
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    getEarlyResearchLeads(),
   ]);
   if (scanError) throw scanError;
 
@@ -97,7 +101,7 @@ export async function getDashboardData() {
   }
 
   // Backward-compatible fallback for deployments before market snapshots exist.
-  if (!markets.us.length && !markets.eu.length) {
+  if (!latestScan?.id && !markets.us.length && !markets.eu.length) {
     const { data: fallback } = await supabase
       .from("opportunities")
       .select("*")
@@ -116,6 +120,7 @@ export async function getDashboardData() {
     signalCount: signalCount || 0,
     clusterCount: (themeCount || 0) || (hasSemantic ? (semanticClusterCount || 0) : (heuristicClusterCount || 0)),
     clusterMode,
+    earlyLeads,
     latestScan: latestScan ? {
       id: latestScan.id,
       status: latestScan.status,
