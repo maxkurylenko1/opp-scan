@@ -77,6 +77,27 @@ export default async function Home() {
                   <strong style={{ color: "#e7ecfb" }}>Next check: </strong>
                   {lead.nextCheck}
                 </p>
+                {lead.marketAudit && (
+                  <details style={{ marginTop: 16, borderTop: "1px solid #33446e", paddingTop: 14 }}>
+                    <summary style={{ cursor: "pointer", fontSize: 13, color: "#bcd0ff", fontWeight: 700 }}>
+                      Current market check · {lead.marketAudit.reviewedAt}
+                    </summary>
+                    <div style={{ marginTop: 12, display: "grid", gap: 12, fontSize: 13, lineHeight: 1.55 }}>
+                      <div><strong>Current capability / open question</strong><p className="muted" style={{ margin: "4px 0 0" }}>{lead.marketAudit.currentProductState}</p></div>
+                      <div><strong>Existing alternatives</strong><p className="muted" style={{ margin: "4px 0 0" }}>{lead.marketAudit.existingAlternatives}</p></div>
+                      <div><strong>Unresolved gap hypothesis</strong><p className="muted" style={{ margin: "4px 0 0" }}>{lead.marketAudit.remainingGapHypothesis}</p></div>
+                      <div><strong>Willingness to pay: unverified</strong><p className="muted" style={{ margin: "4px 0 0" }}>No paid pilots, deposits or purchase commitments were verified for this particular solution.</p></div>
+                      <div>
+                        <strong>Validation experiment</strong>
+                        <ol className="muted" style={{ margin: "6px 0 0", paddingLeft: 19 }}>
+                          {lead.marketAudit.validationSteps.map((step) => <li key={step} style={{ marginBottom: 6 }}>{step}</li>)}
+                        </ol>
+                      </div>
+                      <div><strong>Stop condition</strong><p className="muted" style={{ margin: "4px 0 0" }}>{lead.marketAudit.stopCondition}</p></div>
+                    </div>
+                  </details>
+                )}
+
                 <div style={{ marginTop: 18, display: "grid", gap: 10 }}>
                   <a href={lead.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: "#bcd0ff", textDecoration: "underline" }}>
                     Original report · {when(lead.publishedAt)} ↗
