@@ -48,6 +48,7 @@ create table if not exists public.research_external_search_runs (
   id uuid primary key default gen_random_uuid(),
   lead_id uuid not null references public.research_leads(id) on delete cascade,
   provider text not null check(provider in ('hackernews','github')),
+  search_surface text not null check(search_surface in ('ask_hn','show_hn','github_issues')),
   search_query text not null,
   status text not null check(status in ('success','rate_limited','error')),
   results_seen smallint not null default 0,
