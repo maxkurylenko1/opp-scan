@@ -76,6 +76,14 @@ Status updated: 2026-09-30
    - Photo-to-editable-3D garden: an unrelated homeowner wants pool visualization, a related but non-identical workflow.
    - Clearly tag independent user reports vs adjacent needs / existing solutions / technical context, with original URLs and manual review date. Never feed these curated links into automated ranking, money evidence, or source-independent counts; no Reddit content is imported.
 
+9. **Current product capabilities, competition and paid-demand validation**
+   - Status: COMPLETE (V2.12 research audit, 2026-09-30); actual user trials/interviews/payments remain open.
+   - Full sourced report: [Early Research market check](EARLY_RESEARCH_MARKET_CHECK_2026-09-30.md).
+   - Agent handoff: VS Code already offers cross-harness handoff and MIT-licensed Claude/Codex skills cover CLI workflows; a narrower reliability/privacy gap remains hypothetical. No separate handoff willingness to pay verified.
+   - Per-file AI/Drive access: Google supports `drive.file` + Picker; a historical Claude connector issue reports broader scopes, but today's per-connector OAuth behavior is not reproduced. No paid demand verified.
+   - Firefox multi-account routing: native containers launched in Firefox 153 and the free Mozilla extension already supports multiple logins. An August 2026 MSP report identifies a narrower 30+ tenant navigation/routing workflow and includes an existing prototype. No paid demand verified.
+   - For each lead: document existing alternatives, a reproducible test, affected-user interview criteria, a concrete paid-pilot test and a stop condition. Keep all findings outside automatic opportunity scores/ranking.
+
 ## Guiding rule
 
 Do not optimize for the largest number of signals. Optimize for independent evidence that improves a decision while keeping weak early ideas alive as Scouts.
