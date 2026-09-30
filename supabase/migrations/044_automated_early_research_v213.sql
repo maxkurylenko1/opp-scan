@@ -118,18 +118,23 @@ begin
             and coalesce(s.evidence_quality_score,0)>=6
             and coalesce(s.pain_score,0)>=5
             and length(coalesce(ri.body,''))>=100
+            and lower(ri.title) !~ '(what.s stopping a hardwired|hiring questionnaire)'
           )
           or (
             src.key='amo_reviews'
             and s.evidence_role='problem_demand'
             and coalesce(s.pain_score,0)>=5
-            and ri.raw_payload->>'review_role'='feature_gap'
+            and ri.raw_payload->>'review_role'='feature_or_workflow_gap'
           )
           or (
             src.key='freelancer'
             and s.evidence_role='service_spend'
             and ri.raw_payload->>'demand_class'='repeatable_workflow'
             and length(coalesce(ri.body,''))>=100
+            and lower(coalesce(ri.title,'')) ~
+              '(automati|sync|invoic|recurring|workflow|report|remind|follow.up|integrat|scheduled|batch)'
+            and lower(coalesce(ri.title,'')) !~
+              '(one.time|pentest|penetration|website redesign|single page)'
           )
         )
         and not exists(
