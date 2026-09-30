@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/jobs/recluster?limit=150&pending=true",
+      "path": "/api/jobs/recluster?limit=180&pending=true",
       "schedule": "20 5 * * *"
     },
     {
