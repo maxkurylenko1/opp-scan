@@ -94,6 +94,16 @@ Status updated: 2026-09-30
    - Manual review supports reasoned archive, edits to notes/status, separate matching decisions; archived URLs are not automatically resurrected.
    - Never search Reddit while approved access is missing. V2.13 matching is limited to the already collected, legitimately available corpus and does not claim exhaustive external market or competitor research.
 
+11. **External corroboration and existing-solution discovery**
+   - Status: V2.14 — implementation and transaction tests; production verification after merge.
+   - Official, read-only Hacker News Algolia Ask/Show and GitHub Issues Search APIs; no scraping and **no Reddit API** while access is refused.
+   - Private `research_external_refs` and `research_external_search_runs` with RLS, service-role-only grants, unique per-lead original URLs, preserved manual dismissals and provider/cooldown audit.
+   - Limit to 4 eligible non-archived leads daily at 06:40 UTC via a `CRON_SECRET`-protected Vercel job; max 12 official search requests, 10 source results each, up to 3 candidate links per search surface. Respect GitHub's rate limits, stop GitHub calls on a 403/429 response and do not retry in the same run.
+   - Use narrow per-lead search queries (editable by admin) or derive from public original titles. Never send private notes, full imported documents or personal data to search services.
+   - Require at least 2 overlapping query terms for a *suggestion*. Keep Show HN launches as potential competition and GitHub issues as potentially internal project reports, not automatic independent buyer confirmations.
+   - Deduplicate original URL, manually curated references and existing `raw_items`. Confirming external relevance requires a human-written reason and never changes source normalization, rankings, evidence quality, product confidence or willingness-to-pay labels.
+   - Successful per-lead searches cool down for 7 days; partial/provider failures can be retried after a day, never by bypassing provider limits. Archived leads are never searched.
+
 ## Guiding rule
 
 Do not optimize for the largest number of signals. Optimize for independent evidence that improves a decision while keeping weak early ideas alive as Scouts.
