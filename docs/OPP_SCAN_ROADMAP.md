@@ -66,6 +66,16 @@ Status updated: 2026-09-30
    - Never convert the manually reviewed lead list into score, buyer confidence, cross-source count, outreach automation, or a claim of independently confirmed demand.
    - Broad cross-repository GitHub keyword searches were audited but produced mostly internal plans and tracking issues; do not import them as confirmations.
 
+8. **Focused independent corroboration of Early Research**
+   - Status: COMPLETE (V2.11 manual research review, 2026-09-30).
+   - AI agent context handoff: original HN report plus independent user requests in CC Switch and T3 Code; CC Switch issue was closed as duplicate. An existing open-source handoff implementation is competitive supply, not buyer demand.
+   - Agent access to a single Google Drive file: independent Claude connector report confirms the broader least-privilege concern for a different agent, but that GitHub issue was closed without a planned fix; re-check current connector scopes.
+   - Firefox account-specific containers: a separate Mozilla user describes same-domain multiple-account routing friction. The report is historical, and Mozilla's native Firefox containers preview adds first-party competition.
+   - K-1 bulk extraction: found related manual multistate K-1 entry and an existing extraction vendor, but neither independently confirms the original bulk-PDF workflow.
+   - Stripe Link fraud: official 3DS liability-shift conditions are technical context, not a second independent Link-fraud incident.
+   - Photo-to-editable-3D garden: an unrelated homeowner wants pool visualization, a related but non-identical workflow.
+   - Clearly tag independent user reports vs adjacent needs / existing solutions / technical context, with original URLs and manual review date. Never feed these curated links into automated ranking, money evidence, or source-independent counts; no Reddit content is imported.
+
 ## Guiding rule
 
 Do not optimize for the largest number of signals. Optimize for independent evidence that improves a decision while keeping weak early ideas alive as Scouts.
