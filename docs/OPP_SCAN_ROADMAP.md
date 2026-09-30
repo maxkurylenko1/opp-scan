@@ -1,6 +1,6 @@
 # Opportunity Radar source roadmap
 
-Status updated: 2026-09-29
+Status updated: 2026-09-30
 
 ## Ordered plan
 
@@ -48,6 +48,15 @@ Status updated: 2026-09-29
    - Exact/theme ranking counts only actionable `problem_demand` and `service_spend` evidence.
    - Retired exact candidates get an explicit retired score version so stale rows cannot re-enter snapshots.
    - A current scan with zero surviving opportunities is shown as zero; the UI must not silently fall back to an older populated scan.
+
+6. **Source precision, evidence independence and daily freshness**
+   - Status: V2.9.
+   - Exclude GitHub bot authors, multilingual scheduled digests, internal agent specs and competitor-research notes at collection and SQL-normalization time.
+   - A copied Freelancer buyer brief with a different budget or posting ID is not a second independent paid-work signal.
+   - Exact Scouts need independent corroboration (different source, different author or genuinely separate funded jobs), except a high-quality explicit purchase request that can remain an early single-signal Scout.
+   - Preserve genuine HN usage-limit pain while rejecting quoted, unaffordable plan upgrades as purchase intent.
+   - Reuse previously computed embeddings; increase daily pending batch modestly from 150 to 180.
+   - Refresh the latest scan snapshot immediately after reclustering and ranking so the dashboard does not show yesterday's pre-cluster Top-5.
 
 ## Guiding rule
 
