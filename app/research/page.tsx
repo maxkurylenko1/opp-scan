@@ -26,7 +26,7 @@ function displayType(type: string) {
 export default async function ResearchInbox({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; message?: string }>;
+  searchParams: Promise<{ status?: string; message?: string; searched?: string; found?: string }>;
 }) {
   if (!(await isAdminSession())) {
     return (
@@ -47,7 +47,7 @@ export default async function ResearchInbox({
   if (!db) return <div className="page-shell"><h1>Supabase is not configured</h1></div>;
 
   let query = db.from("research_leads")
-    .select("id,source_url,source_key,title,problem,evidence_role,origin,status,decision_reason,research_notes,created_at,updated_at,reviewed_at,last_scanned_at,research_lead_refs(id,source_key,source_url,title,suggestion_type,similarity,review_status,reviewer_note)")
+    .select("id,source_url,source_key,title,problem,evidence_role,origin,status,decision_reason,research_notes,search_query,last_external_search_at,external_last_error,created_at,updated_at,reviewed_at,last_scanned_at,research_lead_refs(id,source_key,source_url,title,suggestion_type,similarity,review_status,reviewer_note),research_external_refs(id,provider,source_url,title,source_published_at,suggestion_type,search_query,keyword_overlap,review_status,reviewer_note,created_at)")
     .order("created_at", { ascending: false })
     .limit(100);
   if (filter !== "all") query = query.eq("status", filter);
@@ -68,26 +68,37 @@ export default async function ResearchInbox({
     <div className="page-shell">
       <section className="hero" style={{ alignItems: "center" }}>
         <div>
-          <p className="eyebrow">V2.13 · PRIVATE RESEARCH WORKSPACE</p>
+          <p className="eyebrow">V2.14 · PRIVATE RESEARCH WORKSPACE</p>
           <h1>Research inbox</h1>
           <p className="muted">
-            Daily suggestions from the existing approved source corpus. Similarity creates
+            Local suggestions plus bounded HN/GitHub search. Matching creates
             candidates for human review, not proof of independent demand. Archive weak ideas
             with a reason; archived URLs are never automatically re-added.
           </p>
         </div>
-        <form method="post" action="/api/admin/research/refresh">
-          <button type="submit" style={{ padding: "12px 16px", cursor: "pointer" }}>
-            Refresh research suggestions
-          </button>
-        </form>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          <form method="post" action="/api/admin/research/refresh">
+            <button type="submit" style={{ padding: "12px 16px", cursor: "pointer" }}>
+              Refresh local suggestions
+            </button>
+          </form>
+          <form method="post" action="/api/jobs/external-research">
+            <button type="submit" style={{ padding: "12px 16px", cursor: "pointer" }}>
+              Search external sources (max 4)
+            </button>
+          </form>
+        </div>
       </section>
 
       {params.message && (
         <div className="panel" style={{ marginBottom: 20, padding: 14 }}>
           {params.message === "updated" ? "Research review saved." :
             params.message === "refreshed" ? "Candidate and similarity refresh completed." :
-            "The action could not be completed. Check that the status and reason are valid."}
+            params.message === "external"
+              ? `External search checked ${Number(params.searched || 0)} leads and added ${Number(params.found || 0)} unverified source suggestions.`
+              : params.message === "external-noop"
+                ? "No leads currently need a new external search. Each lead is searched at most once per week after a successful pass."
+                : "The action could not be completed. Check the status, reason and query; or see server logs."}
         </div>
       )}
 
@@ -111,6 +122,9 @@ export default async function ResearchInbox({
           const refs = Array.isArray(lead.research_lead_refs) ? lead.research_lead_refs : [];
           const suggested = refs.filter((item: any) => item.review_status === "suggested");
           const confirmed = refs.filter((item: any) => item.review_status === "confirmed");
+          const external = Array.isArray(lead.research_external_refs) ? lead.research_external_refs : [];
+          const externalSuggested = external.filter((item: any) => item.review_status === "suggested");
+          const externalConfirmed = external.filter((item: any) => item.review_status === "confirmed");
           return (
             <article className="card" key={lead.id}>
               <div className="card-top">
@@ -133,6 +147,26 @@ export default async function ResearchInbox({
                 last matching pass: {when(lead.last_scanned_at)}.
                 Neither number changes Opportunity scores or proves purchase intent.
               </p>
+              <p className="muted" style={{ fontSize: 12 }}>
+                External search: {when(lead.last_external_search_at)} ·
+                {externalSuggested.length} unverified source suggestions ·
+                {externalConfirmed.length} manually reviewed source links.
+                A confirmed link is not a verified independent buyer or paid commitment.
+              </p>
+              {lead.external_last_error && (
+                <p className="muted" style={{ fontSize: 12 }}>
+                  Some external searches could not complete: {lead.external_last_error}.
+                  Retry after the cooldown rather than bypassing API rate limits.
+                </p>
+              )}
+              {lead.status !== "archived" && (
+                <form method="post" action="/api/jobs/external-research" style={{ margin: "12px 0" }}>
+                  <input type="hidden" name="leadId" value={lead.id} />
+                  <button type="submit" style={{ padding: "7px 11px", cursor: "pointer" }}>
+                    Search this lead's external sources
+                  </button>
+                </form>
+              )}
 
               {!!refs.length && (
                 <details style={{ margin: "14px 0" }}>
@@ -172,6 +206,69 @@ export default async function ResearchInbox({
                 </details>
               )}
 
+              {!!external.length && (
+                <details style={{ margin: "14px 0" }}>
+                  <summary style={{ cursor: "pointer", color: "#bcd0ff" }}>
+                    External searches: {externalSuggested.length} suggestions,
+                    {" "}{externalConfirmed.length} manually reviewed
+                  </summary>
+                  <p className="muted" style={{ fontSize: 12, margin: "10px 0" }}>
+                    These are official HN/GitHub search hits, not ingested signals.
+                    GitHub issues may be internal project tasks; Show HN posts
+                    represent potential competitors, not buyers. Check each
+                    original source and author before confirming relevance.
+                  </p>
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {external.filter((ref: any) => ref.review_status !== "dismissed").map((ref: any) => (
+                      <div key={ref.id} style={{ border: "1px solid #33446e", borderRadius: 12, padding: 12 }}>
+                        <span className="muted" style={{ fontSize: 12 }}>
+                          {ref.provider === "hackernews" ? "Hacker News" : "GitHub Issues"} ·
+                          {ref.suggestion_type === "possible_solution"
+                            ? "Possible existing solution; NOT demand"
+                            : ref.suggestion_type === "github_issue"
+                              ? "Possibly related issue; buyer identity unverified"
+                              : "Possible user problem; independence unverified"} ·
+                          {ref.review_status} ·
+                          {ref.keyword_overlap} overlapping keywords (not a demand score)
+                        </span>
+                        <p style={{ margin: "7px 0" }}>
+                          <a href={ref.source_url} target="_blank" rel="noopener noreferrer"
+                            style={{ color: "#bcd0ff", textDecoration: "underline" }}>
+                            {ref.title} ↗
+                          </a>
+                        </p>
+                        <p className="muted" style={{ fontSize: 12, margin: "4px 0 9px" }}>
+                          Query: {ref.search_query} · Published: {when(ref.source_published_at)}
+                        </p>
+                        {ref.reviewer_note && (
+                          <p className="muted" style={{ fontSize: 12 }}>{ref.reviewer_note}</p>
+                        )}
+                        {ref.review_status === "suggested" && (
+                          <form method="post" action="/api/admin/research/external-reference"
+                            style={{ display: "grid", gap: 8 }}>
+                            <input type="hidden" name="leadId" value={lead.id} />
+                            <input type="hidden" name="refId" value={ref.id} />
+                            <input name="note" maxLength={500}
+                              placeholder="Why is this same problem or a relevant existing solution?"
+                              style={{ width: "100%", padding: 9 }} />
+                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                              <button type="submit" name="decision" value="confirmed"
+                                style={{ padding: "7px 10px", cursor: "pointer" }}>
+                                Confirm relevance (reason required)
+                              </button>
+                              <button type="submit" name="decision" value="dismissed"
+                                style={{ padding: "7px 10px", cursor: "pointer" }}>
+                                Dismiss
+                              </button>
+                            </div>
+                          </form>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
               <form action="/api/admin/research/status" method="post" style={{ display: "grid", gap: 11, marginTop: 18 }}>
                 <input type="hidden" name="leadId" value={lead.id} />
                 <label style={{ fontSize: 13 }}>
@@ -180,6 +277,16 @@ export default async function ResearchInbox({
                     style={{ display: "block", padding: 9, marginTop: 6, maxWidth: 240, width: "100%" }}>
                     {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
                   </select>
+                </label>
+                <label style={{ fontSize: 13 }}>
+                  Targeted external search query (two or more specific words)
+                  <input name="searchQuery" defaultValue={lead.search_query || ""} maxLength={100}
+                    placeholder="e.g. Claude Codex context handoff"
+                    style={{ display: "block", padding: 9, marginTop: 6, width: "100%" }} />
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    Leave empty to derive from the original title. Changes reset the search cooldown.
+                    Only this query is sent to HN/GitHub; private notes are not shared.
+                  </span>
                 </label>
                 <label style={{ fontSize: 13 }}>
                   Research notes
