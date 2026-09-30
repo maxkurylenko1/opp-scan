@@ -207,9 +207,15 @@ async function searchGitHub(
 
       const title = cleanText(item.title);
       const description = cleanText(item.body);
-      if (title.length < 12 ||
-        /^(fix|feat|chore|docs|test|ci|build|refactor|roadmap|phase|epic|weekly|daily)(?:\(|:|\s|\[)/i.test(title) ||
-        /(this issue does not authorize|definition of done for this issue|daily repository status report)/i.test(description)) continue;
+      const issueText = title + " " + description.slice(0, 1400);
+      // Search retrieves many agent-created project TODOs and mailboxes.
+      // Require an actual observed failure or natural-language user request
+      // before a GitHub issue can even become a *candidate*.
+      const explicitUserProblem = /(no way to|cannot|can't|doesn't|does not|fails?|broken|missing|wish|unable|feature request|bug report|would like|should support|users need|allow to|need a way|request to support)/i.test(issueText);
+      const internalTask = /^(fix|feat|chore|docs|test|ci|build|refactor|roadmap|phase|epic|weekly|daily|backlog|investigation|draft mvp)(?:\(|:|\s|\[)/i.test(title)
+        || /(agent bridge|agent mailbox|agent coordination room|shared communication room|shared message board|\[arven-handoff\])/i.test(title + " " + description.slice(0, 700))
+        || /(this issue does not authorize|definition of done for this issue|daily repository status report|phase:\s*backlog|owner:\s*claude|^##\s*mission)/im.test(description);
+      if (title.length < 12 || internalTask || !explicitUserProblem) continue;
 
       const relevant = overlap(query, title + " " + description.slice(0, 4000));
       if (relevant < 2) continue;
