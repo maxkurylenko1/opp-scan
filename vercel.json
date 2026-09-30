@@ -5,6 +5,10 @@
       "schedule": "20 5 * * *"
     },
     {
+      "path": "/api/jobs/external-research",
+      "schedule": "40 6 * * *"
+    },
+    {
       "path": "/api/jobs/research-themes?limit=3",
       "schedule": "0 6 * * 1"
     },
