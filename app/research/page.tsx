@@ -40,7 +40,9 @@ export default async function ResearchInbox({
   }
 
   const params = await searchParams;
-  const filter = STATUSES.includes(params.status as typeof STATUSES[number]) ? params.status : "all";
+  const requestedStatus = params.status || "all";
+  const filter = STATUSES.includes(requestedStatus as typeof STATUSES[number])
+    ? requestedStatus : "all";
   const db = getAdminClient();
   if (!db) return <div className="page-shell"><h1>Supabase is not configured</h1></div>;
 
