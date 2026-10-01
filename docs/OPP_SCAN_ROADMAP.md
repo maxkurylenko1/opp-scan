@@ -111,6 +111,7 @@ Status updated: 2026-09-30
    - Production queue after review: **2 Validate / 4 Research / 1 New / 14 Archived**.
    - Validate only means the evidence is strong enough to justify a real paid-validation experiment; it is not proof of willingness to pay or product-market fit.
    - Current Validate hypotheses: high-volume pre-PIM catalog/UPC cleanup and managed KV-cache persistence/control for long-running agentic workloads.
+   - First validation outreach sent 2026-10-01: 10 valid catalog/operator contacts and 5 KV-cache/inference contacts; two catalog hard bounces were replaced. No interviews or paid commitments yet.
    - Corrected a false independent-demand unit: Codex #49306 was opened by a bot and was dismissed; two human-authored KV-cache reports replaced it.
    - Archive when the exact workflow is already served by strong low-friction incumbents and no distinct wedge is evidenced, even if the market itself clearly spends money.
    - Do not contact source authors, claim interviews, or claim paid pilots unless those actions actually occur with appropriate authorization.
