@@ -110,9 +110,22 @@ The outreach therefore does **not** ask whether KV caching is useful. It tests w
    - Referenced public remote-KV / LMCache production work.
    - Asked specifically for residual operational gaps after distributed reuse is configured.
 
+## Delivery correction
+
+Two original catalog messages hard-bounced immediately:
+- Alliance Pet Distribution — info@alliancepetdistribution.com
+- Z Distribution — sales@zdistribution.com
+
+They were replaced with:
+- FIZON — lion@fizonparts.com (10,000+ mobile-parts SKUs)
+- MTC Parts — info@mtcparts.com (10,000+ automotive parts)
+
+Hard bounces are not counted as outreach attempts for validation-rate calculations.
+
 ## State at send time
 
-- Catalog emails sent: **10**
+- Catalog valid attempts: **10**
+- Catalog hard bounces replaced: **2**
 - KV-cache emails sent: **5**
 - Interviews completed: **0**
 - Paid commitments: **0**
@@ -149,3 +162,14 @@ KV-cache success signal:
 - >=1 substantive engineering response identifying a residual problem after normal caching/offloading setup.
 
 If either batch returns only generic/no responses, refine ICP/contact role before increasing volume.
+
+
+## Replacement catalog contacts
+
+11. FIZON — lion@fizonparts.com
+    - 10,000+ mobile-parts SKUs.
+    - Asked about model/part numbers, compatibility fields, duplicate SKUs and attribute normalization.
+
+12. MTC Parts — info@mtcparts.com
+    - 10,000+ automotive parts.
+    - Asked about part-number cross-references, fitment attributes, duplicate SKUs and category normalization.
