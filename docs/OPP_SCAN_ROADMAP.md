@@ -117,6 +117,19 @@ Status updated: 2026-09-30
    - Do not contact source authors, claim interviews, or claim paid pilots unless those actions actually occur with appropriate authorization.
 
 
+
+13. **Future backlog — Validation Autopilot / Validation OS**
+   - Status: PARKED / long-term exploration; do not prioritize over current manual validation.
+   - Goal: close the loop from a validated research hypothesis to prospect discovery, personalized outreach, reply triage, follow-ups, interview scheduling and validation evidence capture.
+   - Start email-first and human-in-the-loop: generate/queue messages, classify replies, draft responses and propose follow-ups; require explicit approval before autonomous sending until quality and compliance are proven.
+   - Calendar integration is viable: once a prospect agrees on a time, create/update the meeting, invite attendees and link the meeting back to the relevant hypothesis/experiment.
+   - Social-network automation must respect each platform's rules. In particular, do not use bots or browser automation to scrape or send messages on platforms that prohibit automated activity; prefer official APIs or manual/semi-automated handoff.
+   - Validation state model: prospect → contacted → replied → qualified → interview booked → interviewed → pilot proposed → paid pilot → Build / Archive.
+   - The agent may summarize evidence and recommend the next action, but it must not invent replies, meetings, interviews, willingness to pay or payment outcomes.
+   - Product thesis to revisit later: an internal "business validation operating system" could become a standalone product only after Opp Scan proves the workflow repeatedly across several different opportunity types.
+   - Revisit trigger: at least 3 active validation tracks or >30 prospects where manual reply/follow-up/calendar handling becomes a meaningful bottleneck.
+
+
 ## Guiding rule
 
 Do not optimize for the largest number of signals. Optimize for independent evidence that improves a decision while keeping weak early ideas alive as Scouts.
