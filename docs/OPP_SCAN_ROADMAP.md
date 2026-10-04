@@ -129,6 +129,7 @@ Status updated: 2026-09-30
    - Manual external research now selects P1/P2 leads first and skips P3.
    - Production rerank after cleanup reduced the current market snapshot from forced/noisy Top-5s to 3 surviving Scouts per US/EU market. Empty slots are preferred to filler.
    - Precision filters are intentionally conservative: these guards remove high-confidence noise classes, not every owner-authored GitHub issue or every paid service brief.
+   - Validation execution now follows [7-Day Validation Protocol V1](VALIDATION_PROTOCOL_7_DAY_V1.md): small qualified batches, behavioral tests, explicit Day-4/Day-7 decisions, and max three active validation tracks.
 
 14. **Future backlog — Validation Autopilot / Validation OS**
    - Status: PARKED / long-term exploration; do not prioritize over current manual validation.
