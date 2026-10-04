@@ -86,11 +86,6 @@ export default async function ResearchInbox({
       || (statuses[a.status] ?? 4) - (statuses[b.status] ?? 4)
       || new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
-  const visibleCounts = leads.reduce((result: Record<string, number>, lead: any) => {
-    result[lead.status] = (result[lead.status] || 0) + 1;
-    return result;
-  }, {});
-
   return (
     <div className="page-shell">
       <section className="hero" style={{ alignItems: "center" }}>
