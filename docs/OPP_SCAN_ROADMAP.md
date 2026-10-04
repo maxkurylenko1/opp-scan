@@ -118,7 +118,19 @@ Status updated: 2026-09-30
 
 
 
-13. **Future backlog — Validation Autopilot / Validation OS**
+13. **V2.15 precision pass and Research Priority**
+   - Status: COMPLETE in production (2026-10-04).
+   - Added P1 / P2 / P3 to the private Research Inbox. Default Focus view shows only active P1/P2 leads; P3 remains reviewable through archived/all-priority views.
+   - Validate is always P1. Manually promoted Research is at least P2. Automatic Freelancer signals never become P1 from a single paid brief.
+   - High-confidence internal GitHub work is suppressed before ranking when owner/member/collaborator issues contain agent/task/planning markers, AI-triage text, internal acceptance lanes, or explicit non-user implementation notes.
+   - Generic Freelancer labor (for example text/data-entry conversion, tiny welcome bots, thin expert/service listings) is non-actionable discovery evidence. More specific recurring workflows may remain P2 for review.
+   - Stack Overflow now requires explicit commercial/product intent before it can remain actionable; ordinary technical debugging questions are market context only.
+   - Existing P3 automatic New leads were archived with an explicit V2.15 triage reason instead of consuming the active backlog.
+   - Manual external research now selects P1/P2 leads first and skips P3.
+   - Production rerank after cleanup reduced the current market snapshot from forced/noisy Top-5s to 3 surviving Scouts per US/EU market. Empty slots are preferred to filler.
+   - Precision filters are intentionally conservative: these guards remove high-confidence noise classes, not every owner-authored GitHub issue or every paid service brief.
+
+14. **Future backlog — Validation Autopilot / Validation OS**
    - Status: PARKED / long-term exploration; do not prioritize over current manual validation.
    - Goal: close the loop from a validated research hypothesis to prospect discovery, personalized outreach, reply triage, follow-ups, interview scheduling and validation evidence capture.
    - Start email-first and human-in-the-loop: generate/queue messages, classify replies, draft responses and propose follow-ups; require explicit approval before autonomous sending until quality and compliance are proven.
