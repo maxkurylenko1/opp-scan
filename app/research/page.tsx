@@ -6,6 +6,16 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const STATUSES = ["new", "research", "validate", "archived"] as const;
+const STATUS_FILTERS = ["active", "new", "research", "validate", "archived", "all"] as const;
+const PRIORITY_FILTERS = ["focus", "p1", "p2", "p3", "all"] as const;
+
+function inboxHref(status: string, priority: string) {
+  const query = new URLSearchParams();
+  if (status !== "active") query.set("status", status);
+  if (priority !== "focus") query.set("priority", priority);
+  const suffix = query.toString();
+  return suffix ? `/research?${suffix}` : "/research";
+}
 
 function when(value: string | null | undefined) {
   return value ? new Date(value).toLocaleString("en-GB", {
@@ -26,7 +36,7 @@ function displayType(type: string) {
 export default async function ResearchInbox({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; message?: string; searched?: string; found?: string }>;
+  searchParams: Promise<{ status?: string; priority?: string; message?: string; searched?: string; found?: string }>;
 }) {
   if (!(await isAdminSession())) {
     return (
@@ -40,26 +50,43 @@ export default async function ResearchInbox({
   }
 
   const params = await searchParams;
-  const requestedStatus = params.status || "all";
-  const filter = STATUSES.includes(requestedStatus as typeof STATUSES[number])
-    ? requestedStatus : "all";
+  const requestedStatus = params.status || "active";
+  const filter = STATUS_FILTERS.includes(requestedStatus as typeof STATUS_FILTERS[number])
+    ? requestedStatus : "active";
+  const requestedPriority = params.priority || "focus";
+  const priorityFilter = PRIORITY_FILTERS.includes(requestedPriority as typeof PRIORITY_FILTERS[number])
+    ? requestedPriority : "focus";
   const db = getAdminClient();
   if (!db) return <div className="page-shell"><h1>Supabase is not configured</h1></div>;
 
   let query = db.from("research_leads")
-    .select("id,source_url,source_key,title,problem,evidence_role,origin,status,decision_reason,research_notes,search_query,last_external_search_at,external_last_error,created_at,updated_at,reviewed_at,last_scanned_at,research_lead_refs(id,source_key,source_url,title,suggestion_type,similarity,review_status,reviewer_note),research_external_refs(id,provider,source_url,title,source_published_at,suggestion_type,search_query,keyword_overlap,review_status,reviewer_note,created_at)")
+    .select("id,source_url,source_key,title,problem,evidence_role,origin,status,research_priority,priority_reason,decision_reason,research_notes,search_query,last_external_search_at,external_last_error,created_at,updated_at,reviewed_at,last_scanned_at,research_lead_refs(id,source_key,source_url,title,suggestion_type,similarity,review_status,reviewer_note),research_external_refs(id,provider,source_url,title,source_published_at,suggestion_type,search_query,keyword_overlap,review_status,reviewer_note,created_at)")
     .order("created_at", { ascending: false })
     .limit(100);
-  if (filter !== "all") query = query.eq("status", filter);
   const { data, error } = await query;
   if (error) throw error;
 
-  const leads = (data || []).sort((a: any, b: any) => {
-    const priority: Record<string, number> = { new: 0, research: 1, validate: 2, archived: 3 };
-    return (priority[a.status] ?? 4) - (priority[b.status] ?? 4)
+  const allLeads = data || [];
+  const counts = allLeads.reduce((result: Record<string, number>, lead: any) => {
+    result[lead.status] = (result[lead.status] || 0) + 1;
+    return result;
+  }, {});
+  const leads = allLeads.filter((lead: any) => {
+    const statusMatch = filter === "all"
+      || (filter === "active" && ["new", "research", "validate"].includes(lead.status))
+      || lead.status === filter;
+    const priorityMatch = priorityFilter === "all"
+      || (priorityFilter === "focus" && ["p1", "p2"].includes(lead.research_priority))
+      || lead.research_priority === priorityFilter;
+    return statusMatch && priorityMatch;
+  }).sort((a: any, b: any) => {
+    const priorities: Record<string, number> = { p1: 0, p2: 1, p3: 2 };
+    const statuses: Record<string, number> = { validate: 0, research: 1, new: 2, archived: 3 };
+    return (priorities[a.research_priority] ?? 3) - (priorities[b.research_priority] ?? 3)
+      || (statuses[a.status] ?? 4) - (statuses[b.status] ?? 4)
       || new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
-  const counts = leads.reduce((result: Record<string, number>, lead: any) => {
+  const visibleCounts = leads.reduce((result: Record<string, number>, lead: any) => {
     result[lead.status] = (result[lead.status] || 0) + 1;
     return result;
   }, {});
@@ -68,12 +95,12 @@ export default async function ResearchInbox({
     <div className="page-shell">
       <section className="hero" style={{ alignItems: "center" }}>
         <div>
-          <p className="eyebrow">V2.14 · PRIVATE RESEARCH WORKSPACE</p>
+          <p className="eyebrow">V2.15 · PRECISION RESEARCH WORKSPACE</p>
           <h1>Research inbox</h1>
           <p className="muted">
-            Local suggestions plus bounded HN/GitHub search. Matching creates
-            candidates for human review, not proof of independent demand. Archive weak ideas
-            with a reason; archived URLs are never automatically re-added.
+            Focus view shows only active P1/P2 leads. V2.15 suppresses generic service work,
+            internal project tasks and weak purchase-intent false positives before they consume
+            validation time. Matching still creates candidates for human review, never proof of demand.
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
@@ -102,17 +129,30 @@ export default async function ResearchInbox({
         </div>
       )}
 
-      <nav aria-label="Research filters" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 22 }}>
-        {["all", ...STATUSES].map((status) => (
-          <Link key={status} href={status === "all" ? "/research" : `/research?status=${status}`}
+      <nav aria-label="Research status filters" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+        {STATUS_FILTERS.map((status) => (
+          <Link key={status} href={inboxHref(status, priorityFilter)}
             className="badge"
             style={{
               borderColor: filter === status ? "#9ab1ff" : undefined,
               background: filter === status ? "#303c63" : undefined,
               fontSize: 12, padding: "9px 12px",
             }}>
-            {status === "all" ? "All" : status[0].toUpperCase() + status.slice(1)}
-            {filter === "all" && status !== "all" ? ` · ${counts[status] || 0}` : ""}
+            {status === "active" ? "Active" : status[0].toUpperCase() + status.slice(1)}
+            {status !== "active" && status !== "all" ? ` · ${counts[status] || 0}` : ""}
+          </Link>
+        ))}
+      </nav>
+      <nav aria-label="Research priority filters" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 22 }}>
+        {PRIORITY_FILTERS.map((priority) => (
+          <Link key={priority} href={inboxHref(filter, priority)}
+            className="badge"
+            style={{
+              borderColor: priorityFilter === priority ? "#9ab1ff" : undefined,
+              background: priorityFilter === priority ? "#303c63" : undefined,
+              fontSize: 12, padding: "9px 12px",
+            }}>
+            {priority === "focus" ? "Focus · P1/P2" : priority === "all" ? "All priorities" : priority.toUpperCase()}
           </Link>
         ))}
       </nav>
@@ -129,6 +169,7 @@ export default async function ResearchInbox({
             <article className="card" key={lead.id}>
               <div className="card-top">
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <span className="badge">{lead.research_priority?.toUpperCase() || "P3"}</span>
                   <span className="badge">{lead.status}</span>
                   <span className="badge">{lead.source_key}</span>
                   <span className="badge">{lead.origin === "curated" ? "Manually curated" : "Automated suggestion"}</span>
@@ -138,6 +179,11 @@ export default async function ResearchInbox({
               </div>
               <h3 style={{ marginTop: 16 }}>{lead.title}</h3>
               <p className="muted">{lead.problem}</p>
+              {lead.priority_reason && (
+                <p className="muted" style={{ fontSize: 12 }}>
+                  Priority: {lead.priority_reason}
+                </p>
+              )}
               <p style={{ margin: "12px 0", fontSize: 13 }}>
                 <a href={lead.source_url} target="_blank" rel="noopener noreferrer"
                   style={{ color: "#bcd0ff", textDecoration: "underline" }}>Open original source ↗</a>
@@ -305,7 +351,7 @@ export default async function ResearchInbox({
           );
         })}
         {!leads.length && <div className="empty">
-          Nothing in this filter yet. New candidates will arrive after the scheduled source processing and research refresh.
+          Nothing in this view. P3 auto-triage stays outside the default focus; use All priorities or Archived to inspect it.
         </div>}
       </div>
     </div>
