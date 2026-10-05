@@ -1,6 +1,6 @@
 # Bookkeeping Validation Sprint — 2026-10-05
 
-Status: **PREPARED — DO NOT SEND UNTIL USER APPROVAL**
+Status: **ACTIVE — first batch sent 2026-10-05**
 
 ## Hypothesis
 
@@ -566,3 +566,38 @@ As of 2026-10-05:
 - no new bookkeeping reply since 2026-10-01;
 - no Google Calendar event found for “Maureen”, “Best Bookkeeping”, or “bookkeeping” for 2026-10-05 through 2026-10-06;
 - therefore Maureen’s earlier tentative call is **not treated as confirmed**.
+
+
+## Execution log
+
+### 2026-10-05 — First contact batch
+
+Sent first-touch emails to the 10 A/A+ prospects:
+
+1. Hiline
+2. System Six Bookkeeping
+3. True North Accounting
+4. Hot Toast Consulting
+5. Tidier Books
+6. DL Accounts
+7. Accounts All Sorted
+8. Bright Line Financial Services
+9. Blackwood Bookkeeping Solutions
+10. Protea Financial
+
+All 10 are recorded in the Bookkeeping Outreach Tracker with:
+- First Contact: 2026-10-05
+- Status: No reply
+- Follow-up target: 2026-10-08
+- Gmail message reference captured
+
+No immediate bounce or auto-reply was present at the post-send check.
+
+The five reserve prospects remain unsent / Planned:
+- BW&O
+- Burge & Associates
+- RMD Consulting & Advisory
+- TNT Accounting Services
+- +MORE Group
+
+Do not send the reserve batch before the first Day-4 read unless replacements are needed for hard bounces or the first-batch learning suggests the same framing should continue.
