@@ -593,11 +593,21 @@ All 10 are recorded in the Bookkeeping Outreach Tracker with:
 
 No immediate bounce or auto-reply was present at the post-send check.
 
-The five reserve prospects remain unsent / Planned:
+Second wave sent immediately after user approval on 2026-10-05:
 - BW&O
 - Burge & Associates
 - RMD Consulting & Advisory
 - TNT Accounting Services
 - +MORE Group
 
-Do not send the reserve batch before the first Day-4 read unless replacements are needed for hard bounces or the first-batch learning suggests the same framing should continue.
+Outcome:
+- 5 send attempts completed.
+- TNT Accounting Services effectively bounced: info@tntaccounting.net appears to forward to steve@tntaccounting.net, which returned 550 5.1.1 address not found.
+- TNT is marked Do not contact / no follow-up.
+- The other 4 had no immediate bounce or auto-reply at the post-send check.
+
+Current sprint total:
+- 15 send attempts
+- 14 currently delivered/awaiting reply
+- 1 hard delivery failure
+
