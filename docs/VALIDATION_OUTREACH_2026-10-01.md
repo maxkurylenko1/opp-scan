@@ -173,3 +173,34 @@ If either batch returns only generic/no responses, refine ICP/contact role befor
 12. MTC Parts — info@mtcparts.com
     - 10,000+ automotive parts.
     - Asked about part-number cross-references, fitment attributes, duplicate SKUs and category normalization.
+
+
+## 2026-10-06 — Catalog follow-up
+
+Sent one follow-up in-thread to all 10 valid Catalog contacts:
+
+1. OneStopSKU
+2. AKN Wholesale
+3. US Wholesale Distribution
+4. Import Export Trader
+5. Fragrance Distributors EU
+6. Econstru
+7. AT Beauty Group
+8. Floria Tech
+9. FIZON
+10. MTC Parts
+
+Follow-up framing:
+- one final short touch only;
+- asks whether recurring catalog/supplier-data cleanup still exists at their scale;
+- explicitly treats “our current process already handles this well” as useful counter-evidence;
+- no further generic follow-up is planned if there is no reply.
+
+Post-send check:
+- no new hard bounce;
+- no new auto-reply;
+- substantive Catalog replies remain 0 at the moment of the check.
+
+Next decision:
+- if this follow-up still produces no meaningful replies, stop generic mailbox outreach for this hypothesis;
+- next Catalog sprint should use named Product Data / Catalog / PIM / Ecommerce Operations contacts and a concrete 300–500 row audit offer rather than another research-only email batch.
